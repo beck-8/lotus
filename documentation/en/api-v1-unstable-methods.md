@@ -195,6 +195,7 @@
   * [StateMinerPreCommitDepositForPower](#StateMinerPreCommitDepositForPower)
   * [StateMinerProvingDeadline](#StateMinerProvingDeadline)
   * [StateMinerRecoveries](#StateMinerRecoveries)
+  * [StateMinerSectorAllCount](#StateMinerSectorAllCount)
   * [StateMinerSectorAllocated](#StateMinerSectorAllocated)
   * [StateMinerSectorCount](#StateMinerSectorCount)
   * [StateMinerSectors](#StateMinerSectors)
@@ -6340,6 +6341,36 @@ Response:
   5,
   1
 ]
+```
+
+### StateMinerSectorAllCount
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "f01234",
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ]
+]
+```
+
+Response:
+```json
+{
+  "All": 42,
+  "Live": 42,
+  "Active": 42,
+  "Faulty": 42
+}
 ```
 
 ### StateMinerSectorAllocated

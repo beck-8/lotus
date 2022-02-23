@@ -776,6 +776,54 @@ func (a *StateAPI) StateMinerSectorCount(ctx context.Context, addr address.Addre
 	return api.MinerSectors{Live: liveCount, Active: activeCount, Faulty: faultyCount}, nil
 }
 
+func (a *StateAPI) StateMinerSectorAllCount(ctx context.Context, addr address.Address, tsk types.TipSetKey) (api.MinerAllSectors, error) {
+	act, err := a.StateManager.LoadActorTsk(ctx, addr, tsk)
+	if err != nil {
+		return api.MinerAllSectors{}, err
+	}
+	mas, err := miner.Load(a.Chain.ActorStore(ctx), act)
+	if err != nil {
+		return api.MinerAllSectors{}, err
+	}
+	var allCount, activeCount, liveCount, faultyCount uint64
+	if err := mas.ForEachDeadline(func(_ uint64, dl miner.Deadline) error {
+		return dl.ForEachPartition(func(_ uint64, part miner.Partition) error {
+			if all, err := part.AllSectors(); err != nil {
+				return err
+			} else if count, err := all.Count(); err != nil {
+				return err
+			} else {
+				allCount += count
+			}
+			if active, err := part.ActiveSectors(); err != nil {
+				return err
+			} else if count, err := active.Count(); err != nil {
+				return err
+			} else {
+				activeCount += count
+			}
+			if live, err := part.LiveSectors(); err != nil {
+				return err
+			} else if count, err := live.Count(); err != nil {
+				return err
+			} else {
+				liveCount += count
+			}
+			if faulty, err := part.FaultySectors(); err != nil {
+				return err
+			} else if count, err := faulty.Count(); err != nil {
+				return err
+			} else {
+				faultyCount += count
+			}
+			return nil
+		})
+	}); err != nil {
+		return api.MinerAllSectors{}, err
+	}
+	return api.MinerAllSectors{Live: liveCount, Active: activeCount, Faulty: faultyCount}, nil
+}
+
 func (a *StateAPI) StateSectorPreCommitInfo(ctx context.Context, maddr address.Address, n abi.SectorNumber, tsk types.TipSetKey) (miner.SectorPreCommitOnChainInfo, error) {
 	ts, err := a.Chain.GetTipSetFromKey(ctx, tsk)
 	if err != nil {

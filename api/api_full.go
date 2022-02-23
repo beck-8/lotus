@@ -529,6 +529,8 @@ type FullNode interface {
 	StateChangedActors(context.Context, cid.Cid, cid.Cid) (map[string]types.Actor, error) //perm:read
 	// StateMinerSectorCount returns the number of sectors in a miner's sector set and proving set
 	StateMinerSectorCount(context.Context, address.Address, types.TipSetKey) (MinerSectors, error) //perm:read
+
+	StateMinerSectorAllCount(context.Context, address.Address, types.TipSetKey) (MinerAllSectors, error) //perm:read
 	// StateCompute is a flexible command that applies the given messages on the given tipset.
 	// The messages are run as though the VM were at the provided height.
 	//
@@ -742,6 +744,15 @@ type MinerSectors struct {
 	Faulty uint64
 }
 
+type MinerAllSectors struct {
+	All uint64
+	// Live sectors that should be proven.
+	Live uint64
+	// Sectors actively contributing to power.
+	Active uint64
+	// Sectors with failed proofs.
+	Faulty uint64
+}
 type ImportRes struct {
 	Root     cid.Cid
 	ImportID imports.ID
