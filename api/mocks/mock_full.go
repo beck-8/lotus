@@ -2604,6 +2604,21 @@ func (mr *MockFullNodeMockRecorder) StateMinerRecoveries(arg0, arg1, arg2 interf
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StateMinerRecoveries", reflect.TypeOf((*MockFullNode)(nil).StateMinerRecoveries), arg0, arg1, arg2)
 }
 
+// StateMinerSectorAllCount mocks base method.
+func (m *MockFullNode) StateMinerSectorAllCount(arg0 context.Context, arg1 address.Address, arg2 types.TipSetKey) (api.MinerAllSectors, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StateMinerSectorAllCount", arg0, arg1, arg2)
+	ret0, _ := ret[0].(api.MinerAllSectors)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StateMinerSectorAllCount indicates an expected call of StateMinerSectorAllCount.
+func (mr *MockFullNodeMockRecorder) StateMinerSectorAllCount(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StateMinerSectorAllCount", reflect.TypeOf((*MockFullNode)(nil).StateMinerSectorAllCount), arg0, arg1, arg2)
+}
+
 // StateMinerSectorAllocated mocks base method.
 func (m *MockFullNode) StateMinerSectorAllocated(arg0 context.Context, arg1 address.Address, arg2 abi.SectorNumber, arg3 types.TipSetKey) (bool, error) {
 	m.ctrl.T.Helper()

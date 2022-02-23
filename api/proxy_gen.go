@@ -392,6 +392,8 @@ type FullNodeStruct struct {
 
 		StateMinerRecoveries func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (bitfield.BitField, error) `perm:"read"`
 
+		StateMinerSectorAllCount func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (MinerAllSectors, error) `perm:"read"`
+
 		StateMinerSectorAllocated func(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (bool, error) `perm:"read"`
 
 		StateMinerSectorCount func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (MinerSectors, error) `perm:"read"`
@@ -2646,6 +2648,17 @@ func (s *FullNodeStruct) StateMinerRecoveries(p0 context.Context, p1 address.Add
 
 func (s *FullNodeStub) StateMinerRecoveries(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (bitfield.BitField, error) {
 	return *new(bitfield.BitField), ErrNotSupported
+}
+
+func (s *FullNodeStruct) StateMinerSectorAllCount(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (MinerAllSectors, error) {
+	if s.Internal.StateMinerSectorAllCount == nil {
+		return *new(MinerAllSectors), ErrNotSupported
+	}
+	return s.Internal.StateMinerSectorAllCount(p0, p1, p2)
+}
+
+func (s *FullNodeStub) StateMinerSectorAllCount(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (MinerAllSectors, error) {
+	return *new(MinerAllSectors), ErrNotSupported
 }
 
 func (s *FullNodeStruct) StateMinerSectorAllocated(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (bool, error) {
