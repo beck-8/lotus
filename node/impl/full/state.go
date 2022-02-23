@@ -249,6 +249,102 @@ func (a *StateAPI) StateMinerPartitions(ctx context.Context, m address.Address, 
 	return out, err
 }
 
+func (a *StateAPI) StateMinerPartitionsUint(ctx context.Context, m address.Address, dlIdx uint64, tsk types.TipSetKey) ([]api.PartitionUint, error) {
+	act, err := a.StateManager.LoadActorTsk(ctx, m, tsk)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to load miner actor: %w", err)
+	}
+
+	mas, err := miner.Load(a.StateManager.ChainStore().ActorStore(ctx), act)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to load miner actor state: %w", err)
+	}
+
+	dl, err := mas.LoadDeadline(dlIdx)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to load the deadline: %w", err)
+	}
+
+	var out []api.PartitionUint
+	err = dl.ForEachPartition(func(_ uint64, part miner.Partition) error {
+		allSectors, err := part.AllSectors()
+		if err != nil {
+			return xerrors.Errorf("getting AllSectors: %w", err)
+		}
+		allCount, err := allSectors.Count()
+		if err != nil {
+			return err
+		}
+		allNumbers, err := allSectors.All(allCount)
+		if err != nil {
+			return err
+		}
+
+		faultySectors, err := part.FaultySectors()
+		if err != nil {
+			return xerrors.Errorf("getting FaultySectors: %w", err)
+		}
+		faultyCount, err := faultySectors.Count()
+		if err != nil {
+			return err
+		}
+		faultyNumbers, err := faultySectors.All(faultyCount)
+		if err != nil {
+			return err
+		}
+
+		recoveringSectors, err := part.RecoveringSectors()
+		if err != nil {
+			return xerrors.Errorf("getting RecoveringSectors: %w", err)
+		}
+
+		recoveringCount, err := recoveringSectors.Count()
+		if err != nil {
+			return err
+		}
+		recoveringNumbers, err := recoveringSectors.All(recoveringCount)
+		if err != nil {
+			return err
+		}
+		liveSectors, err := part.LiveSectors()
+		if err != nil {
+			return xerrors.Errorf("getting LiveSectors: %w", err)
+		}
+
+		liveCount, err := liveSectors.Count()
+		if err != nil {
+			return err
+		}
+		liveNumbers, err := liveSectors.All(liveCount)
+		if err != nil {
+			return err
+		}
+		activeSectors, err := part.ActiveSectors()
+		if err != nil {
+			return xerrors.Errorf("getting ActiveSectors: %w", err)
+		}
+
+		activeCount, err := activeSectors.Count()
+		if err != nil {
+			return err
+		}
+		activeNumbers, err := activeSectors.All(activeCount)
+		if err != nil {
+			return err
+		}
+		out = append(out, api.PartitionUint{
+			AllSectors:        allNumbers,
+			FaultySectors:     faultyNumbers,
+			RecoveringSectors: recoveringNumbers,
+			LiveSectors:       liveNumbers,
+			ActiveSectors:     activeNumbers,
+		})
+		return nil
+	})
+
+	return out, err
+}
+
 func (m *StateModule) StateMinerProvingDeadline(ctx context.Context, addr address.Address, tsk types.TipSetKey) (*dline.Info, error) {
 	ts, err := m.Chain.GetTipSetFromKey(ctx, tsk)
 	if err != nil {

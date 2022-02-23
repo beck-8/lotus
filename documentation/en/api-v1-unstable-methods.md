@@ -191,6 +191,7 @@
   * [StateMinerInfo](#StateMinerInfo)
   * [StateMinerInitialPledgeCollateral](#StateMinerInitialPledgeCollateral)
   * [StateMinerPartitions](#StateMinerPartitions)
+  * [StateMinerPartitionsUint](#StateMinerPartitionsUint)
   * [StateMinerPower](#StateMinerPower)
   * [StateMinerPreCommitDepositForPower](#StateMinerPreCommitDepositForPower)
   * [StateMinerProvingDeadline](#StateMinerProvingDeadline)
@@ -6198,6 +6199,30 @@ Response:
   }
 ]
 ```
+
+### StateMinerPartitionsUint
+StateMinerPartitionsUint returns all partitions in the specified deadline Uint
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "f01234",
+  42,
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ]
+]
+```
+
+Response: `null`
 
 ### StateMinerPower
 StateMinerPower returns the power of the indicated miner
