@@ -821,7 +821,7 @@ func (a *StateAPI) StateMinerSectorAllCount(ctx context.Context, addr address.Ad
 	}); err != nil {
 		return api.MinerAllSectors{}, err
 	}
-	return api.MinerAllSectors{Live: liveCount, Active: activeCount, Faulty: faultyCount}, nil
+	return api.MinerAllSectors{All: allCount, Live: liveCount, Active: activeCount, Faulty: faultyCount}, nil
 }
 
 func (a *StateAPI) StateSectorPreCommitInfo(ctx context.Context, maddr address.Address, n abi.SectorNumber, tsk types.TipSetKey) (miner.SectorPreCommitOnChainInfo, error) {
