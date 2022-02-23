@@ -384,6 +384,8 @@ type FullNodeStruct struct {
 
 		StateMinerPartitions func(p0 context.Context, p1 address.Address, p2 uint64, p3 types.TipSetKey) ([]Partition, error) `perm:"read"`
 
+		StateMinerPartitionsUint func(p0 context.Context, p1 address.Address, p2 uint64, p3 types.TipSetKey) ([]PartitionUint, error) `perm:"read"`
+
 		StateMinerPower func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*MinerPower, error) `perm:"read"`
 
 		StateMinerPreCommitDepositForPower func(p0 context.Context, p1 address.Address, p2 miner.SectorPreCommitInfo, p3 types.TipSetKey) (types.BigInt, error) `perm:"read"`
@@ -2604,6 +2606,17 @@ func (s *FullNodeStruct) StateMinerPartitions(p0 context.Context, p1 address.Add
 
 func (s *FullNodeStub) StateMinerPartitions(p0 context.Context, p1 address.Address, p2 uint64, p3 types.TipSetKey) ([]Partition, error) {
 	return *new([]Partition), ErrNotSupported
+}
+
+func (s *FullNodeStruct) StateMinerPartitionsUint(p0 context.Context, p1 address.Address, p2 uint64, p3 types.TipSetKey) ([]PartitionUint, error) {
+	if s.Internal.StateMinerPartitionsUint == nil {
+		return *new([]PartitionUint), ErrNotSupported
+	}
+	return s.Internal.StateMinerPartitionsUint(p0, p1, p2, p3)
+}
+
+func (s *FullNodeStub) StateMinerPartitionsUint(p0 context.Context, p1 address.Address, p2 uint64, p3 types.TipSetKey) ([]PartitionUint, error) {
+	return *new([]PartitionUint), ErrNotSupported
 }
 
 func (s *FullNodeStruct) StateMinerPower(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*MinerPower, error) {

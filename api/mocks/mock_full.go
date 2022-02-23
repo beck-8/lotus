@@ -2544,6 +2544,21 @@ func (mr *MockFullNodeMockRecorder) StateMinerPartitions(arg0, arg1, arg2, arg3 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StateMinerPartitions", reflect.TypeOf((*MockFullNode)(nil).StateMinerPartitions), arg0, arg1, arg2, arg3)
 }
 
+// StateMinerPartitionsUint mocks base method.
+func (m *MockFullNode) StateMinerPartitionsUint(arg0 context.Context, arg1 address.Address, arg2 uint64, arg3 types.TipSetKey) ([]api.PartitionUint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StateMinerPartitionsUint", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].([]api.PartitionUint)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StateMinerPartitionsUint indicates an expected call of StateMinerPartitionsUint.
+func (mr *MockFullNodeMockRecorder) StateMinerPartitionsUint(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StateMinerPartitionsUint", reflect.TypeOf((*MockFullNode)(nil).StateMinerPartitionsUint), arg0, arg1, arg2, arg3)
+}
+
 // StateMinerPower mocks base method.
 func (m *MockFullNode) StateMinerPower(arg0 context.Context, arg1 address.Address, arg2 types.TipSetKey) (*api.MinerPower, error) {
 	m.ctrl.T.Helper()

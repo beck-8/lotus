@@ -448,6 +448,8 @@ type FullNode interface {
 	StateMinerDeadlines(context.Context, address.Address, types.TipSetKey) ([]Deadline, error) //perm:read
 	// StateMinerPartitions returns all partitions in the specified deadline
 	StateMinerPartitions(ctx context.Context, m address.Address, dlIdx uint64, tsk types.TipSetKey) ([]Partition, error) //perm:read
+	// StateMinerPartitionsUint returns all partitions in the specified deadline Uint
+	StateMinerPartitionsUint(ctx context.Context, m address.Address, dlIdx uint64, tsk types.TipSetKey) ([]PartitionUint, error) //perm:read
 	// StateMinerFaults returns a bitfield indicating the faulty sectors of the given miner
 	StateMinerFaults(context.Context, address.Address, types.TipSetKey) (bitfield.BitField, error) //perm:read
 	// StateAllMinerFaults returns all non-expired Faults that occur within lookback epochs of the given tipset
@@ -1152,6 +1154,14 @@ type Partition struct {
 	RecoveringSectors bitfield.BitField
 	LiveSectors       bitfield.BitField
 	ActiveSectors     bitfield.BitField
+}
+
+type PartitionUint struct {
+	AllSectors        []uint64
+	FaultySectors     []uint64
+	RecoveringSectors []uint64
+	LiveSectors       []uint64
+	ActiveSectors     []uint64
 }
 
 type Fault struct {
