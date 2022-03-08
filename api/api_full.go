@@ -446,6 +446,8 @@ type FullNode interface {
 	StateMinerInfo(context.Context, address.Address, types.TipSetKey) (miner.MinerInfo, error) //perm:read
 	// StateMinerDeadlines returns all the proving deadlines for the given miner
 	StateMinerDeadlines(context.Context, address.Address, types.TipSetKey) ([]Deadline, error) //perm:read
+	// StateMinerDeadlinesUint returns all the proving deadlines Uint for the given miner
+	StateMinerDeadlinesUint(context.Context, address.Address, types.TipSetKey) ([]DeadlineUint, error) //perm:read
 	// StateMinerPartitions returns all partitions in the specified deadline
 	StateMinerPartitions(ctx context.Context, m address.Address, dlIdx uint64, tsk types.TipSetKey) ([]Partition, error) //perm:read
 	// StateMinerPartitionsUint returns all partitions in the specified deadline Uint
@@ -1145,6 +1147,11 @@ const (
 
 type Deadline struct {
 	PostSubmissions      bitfield.BitField
+	DisputableProofCount uint64
+}
+
+type DeadlineUint struct {
+	PostSubmissions      []uint64
 	DisputableProofCount uint64
 }
 

@@ -180,6 +180,7 @@
   * [StateMinerActiveSectors](#StateMinerActiveSectors)
   * [StateMinerAvailableBalance](#StateMinerAvailableBalance)
   * [StateMinerDeadlines](#StateMinerDeadlines)
+  * [StateMinerDeadlinesUint](#StateMinerDeadlinesUint)
   * [StateMinerFaults](#StateMinerFaults)
   * [StateMinerInfo](#StateMinerInfo)
   * [StateMinerInitialPledgeCollateral](#StateMinerInitialPledgeCollateral)
@@ -4583,6 +4584,29 @@ Response: `"0"`
 
 ### StateMinerDeadlines
 StateMinerDeadlines returns all the proving deadlines for the given miner
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "f01234",
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ]
+]
+```
+
+Response: `null`
+
+### StateMinerDeadlinesUint
+StateMinerDeadlinesUint returns all the proving deadlines Uint for the given miner
 
 
 Perms: read

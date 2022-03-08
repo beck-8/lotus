@@ -2484,6 +2484,21 @@ func (mr *MockFullNodeMockRecorder) StateMinerDeadlines(arg0, arg1, arg2 interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StateMinerDeadlines", reflect.TypeOf((*MockFullNode)(nil).StateMinerDeadlines), arg0, arg1, arg2)
 }
 
+// StateMinerDeadlinesUint mocks base method.
+func (m *MockFullNode) StateMinerDeadlinesUint(arg0 context.Context, arg1 address.Address, arg2 types.TipSetKey) ([]api.DeadlineUint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StateMinerDeadlinesUint", arg0, arg1, arg2)
+	ret0, _ := ret[0].([]api.DeadlineUint)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StateMinerDeadlinesUint indicates an expected call of StateMinerDeadlinesUint.
+func (mr *MockFullNodeMockRecorder) StateMinerDeadlinesUint(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StateMinerDeadlinesUint", reflect.TypeOf((*MockFullNode)(nil).StateMinerDeadlinesUint), arg0, arg1, arg2)
+}
+
 // StateMinerFaults mocks base method.
 func (m *MockFullNode) StateMinerFaults(arg0 context.Context, arg1 address.Address, arg2 types.TipSetKey) (bitfield.BitField, error) {
 	m.ctrl.T.Helper()
