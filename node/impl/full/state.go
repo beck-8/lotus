@@ -193,6 +193,55 @@ func (a *StateAPI) StateMinerDeadlines(ctx context.Context, m address.Address, t
 	return out, nil
 }
 
+func (a *StateAPI) StateMinerDeadlinesUint(ctx context.Context, m address.Address, tsk types.TipSetKey) ([]api.DeadlineUint, error) {
+	act, err := a.StateManager.LoadActorTsk(ctx, m, tsk)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to load miner actor: %w", err)
+	}
+
+	mas, err := miner.Load(a.StateManager.ChainStore().ActorStore(ctx), act)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to load miner actor state: %w", err)
+	}
+
+	deadlines, err := mas.NumDeadlines()
+	if err != nil {
+		return nil, xerrors.Errorf("getting deadline count: %w", err)
+	}
+
+	out := make([]api.DeadlineUint, deadlines)
+	if err := mas.ForEachDeadline(func(i uint64, dl miner.Deadline) error {
+		ps, err := dl.PartitionsPoSted()
+		if err != nil {
+			return err
+		}
+
+		pscount, err := ps.Count()
+		if err != nil {
+			return err
+		}
+
+		pslist, err := ps.All(pscount)
+		if err != nil {
+			return err
+		}
+
+		l, err := dl.DisputableProofCount()
+		if err != nil {
+			return err
+		}
+
+		out[i] = api.DeadlineUint{
+			PostSubmissions:      pslist,
+			DisputableProofCount: l,
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (a *StateAPI) StateMinerPartitions(ctx context.Context, m address.Address, dlIdx uint64, tsk types.TipSetKey) ([]api.Partition, error) {
 	act, err := a.StateManager.LoadActorTsk(ctx, m, tsk)
 	if err != nil {

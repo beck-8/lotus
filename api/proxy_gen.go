@@ -378,6 +378,8 @@ type FullNodeStruct struct {
 
 		StateMinerDeadlines func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) ([]Deadline, error) `perm:"read"`
 
+		StateMinerDeadlinesUint func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) ([]DeadlineUint, error) `perm:"read"`
+
 		StateMinerFaults func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (bitfield.BitField, error) `perm:"read"`
 
 		StateMinerInfo func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (miner.MinerInfo, error) `perm:"read"`
@@ -2599,6 +2601,17 @@ func (s *FullNodeStruct) StateMinerDeadlines(p0 context.Context, p1 address.Addr
 
 func (s *FullNodeStub) StateMinerDeadlines(p0 context.Context, p1 address.Address, p2 types.TipSetKey) ([]Deadline, error) {
 	return *new([]Deadline), ErrNotSupported
+}
+
+func (s *FullNodeStruct) StateMinerDeadlinesUint(p0 context.Context, p1 address.Address, p2 types.TipSetKey) ([]DeadlineUint, error) {
+	if s.Internal.StateMinerDeadlinesUint == nil {
+		return *new([]DeadlineUint), ErrNotSupported
+	}
+	return s.Internal.StateMinerDeadlinesUint(p0, p1, p2)
+}
+
+func (s *FullNodeStub) StateMinerDeadlinesUint(p0 context.Context, p1 address.Address, p2 types.TipSetKey) ([]DeadlineUint, error) {
+	return *new([]DeadlineUint), ErrNotSupported
 }
 
 func (s *FullNodeStruct) StateMinerFaults(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (bitfield.BitField, error) {
