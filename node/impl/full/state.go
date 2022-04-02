@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 
 	"github.com/filecoin-project/go-state-types/crypto"
+	"github.com/multiformats/go-multiaddr"
 
 	"github.com/filecoin-project/go-state-types/cbor"
 	cid "github.com/ipfs/go-cid"
@@ -53,6 +55,7 @@ type StateModuleAPI interface {
 	StateMarketBalance(ctx context.Context, addr address.Address, tsk types.TipSetKey) (api.MarketBalance, error)
 	StateMarketStorageDeal(ctx context.Context, dealId abi.DealID, tsk types.TipSetKey) (*api.MarketDeal, error)
 	StateMinerInfo(ctx context.Context, actor address.Address, tsk types.TipSetKey) (miner.MinerInfo, error)
+	StateMinerInfoMult(ctx context.Context, actor address.Address, tsk types.TipSetKey) (miner.MinerInfoMult, error)
 	StateMinerProvingDeadline(ctx context.Context, addr address.Address, tsk types.TipSetKey) (*dline.Info, error)
 	StateMinerPower(context.Context, address.Address, types.TipSetKey) (*api.MinerPower, error)
 	StateNetworkVersion(ctx context.Context, key types.TipSetKey) (network.Version, error)
@@ -152,6 +155,54 @@ func (m *StateModule) StateMinerInfo(ctx context.Context, actor address.Address,
 		return miner.MinerInfo{}, err
 	}
 	return info, nil
+}
+
+func (m *StateModule) StateMinerInfoMult(ctx context.Context, actor address.Address, tsk types.TipSetKey) (miner.MinerInfoMult, error) {
+	ts, err := m.Chain.GetTipSetFromKey(ctx, tsk)
+	if err != nil {
+		return miner.MinerInfoMult{}, xerrors.Errorf("failed to load tipset: %w", err)
+	}
+
+	act, err := m.StateManager.LoadActor(ctx, actor, ts)
+	if err != nil {
+		return miner.MinerInfoMult{}, xerrors.Errorf("failed to load miner actor: %w", err)
+	}
+
+	mas, err := miner.Load(m.StateManager.ChainStore().ActorStore(ctx), act)
+	if err != nil {
+		return miner.MinerInfoMult{}, xerrors.Errorf("failed to load miner actor state: %w", err)
+	}
+
+	info, err := mas.Info()
+	if err != nil {
+		return miner.MinerInfoMult{}, err
+	}
+
+	var addrs []multiaddr.Multiaddr
+
+	for _, addr := range info.Multiaddrs {
+		a, err := multiaddr.NewMultiaddrBytes(addr)
+		if err != nil {
+			fmt.Printf("undecodable listen address: %s", err)
+		}
+		addrs = append(addrs, a)
+	}
+
+	infoMult := miner.MinerInfoMult{
+		Owner:                      info.Owner,
+		Worker:                     info.Worker,
+		NewWorker:                  info.NewWorker,
+		ControlAddresses:           info.ControlAddresses,
+		WorkerChangeEpoch:          info.WorkerChangeEpoch,
+		PeerId:                     info.PeerId,
+		Multiaddrs:                 addrs,
+		WindowPoStProofType:        info.WindowPoStProofType,
+		SectorSize:                 info.SectorSize,
+		WindowPoStPartitionSectors: info.WindowPoStPartitionSectors,
+		ConsensusFaultElapsed:      info.ConsensusFaultElapsed,
+	}
+
+	return infoMult, nil
 }
 
 func (a *StateAPI) StateMinerDeadlines(ctx context.Context, m address.Address, tsk types.TipSetKey) ([]api.Deadline, error) {

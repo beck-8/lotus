@@ -6,6 +6,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multiaddr"
 	cbg "github.com/whyrusleeping/cbor-gen"
 	"golang.org/x/xerrors"
 
@@ -355,6 +356,19 @@ type MinerInfo struct {
 	WorkerChangeEpoch          abi.ChainEpoch
 	PeerId                     *peer.ID
 	Multiaddrs                 []abi.Multiaddrs
+	WindowPoStProofType        abi.RegisteredPoStProof
+	SectorSize                 abi.SectorSize
+	WindowPoStPartitionSectors uint64
+	ConsensusFaultElapsed      abi.ChainEpoch
+}
+type MinerInfoMult struct {
+	Owner                      address.Address   // Must be an ID-address.
+	Worker                     address.Address   // Must be an ID-address.
+	NewWorker                  address.Address   // Must be an ID-address.
+	ControlAddresses           []address.Address // Must be an ID-addresses.
+	WorkerChangeEpoch          abi.ChainEpoch
+	PeerId                     *peer.ID
+	Multiaddrs                 []multiaddr.Multiaddr
 	WindowPoStProofType        abi.RegisteredPoStProof
 	SectorSize                 abi.SectorSize
 	WindowPoStPartitionSectors uint64
