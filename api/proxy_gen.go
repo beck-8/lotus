@@ -410,8 +410,6 @@ type FullNodeStruct struct {
 
 		StateMinerDeadlines func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) ([]Deadline, error) `perm:"read"`
 
-		StateMinerDeadlinesUint func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) ([]DeadlineUint, error) `perm:"read"`
-
 		StateMinerFaults func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (bitfield.BitField, error) `perm:"read"`
 
 		StateMinerInfo func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (MinerInfo, error) `perm:"read"`
@@ -420,8 +418,6 @@ type FullNodeStruct struct {
 
 		StateMinerPartitions func(p0 context.Context, p1 address.Address, p2 uint64, p3 types.TipSetKey) ([]Partition, error) `perm:"read"`
 
-		StateMinerPartitionsUint func(p0 context.Context, p1 address.Address, p2 uint64, p3 types.TipSetKey) ([]PartitionUint, error) `perm:"read"`
-
 		StateMinerPower func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*MinerPower, error) `perm:"read"`
 
 		StateMinerPreCommitDepositForPower func(p0 context.Context, p1 address.Address, p2 miner.SectorPreCommitInfo, p3 types.TipSetKey) (types.BigInt, error) `perm:"read"`
@@ -429,8 +425,6 @@ type FullNodeStruct struct {
 		StateMinerProvingDeadline func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*dline.Info, error) `perm:"read"`
 
 		StateMinerRecoveries func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (bitfield.BitField, error) `perm:"read"`
-
-		StateMinerSectorAllCount func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (MinerAllSectors, error) `perm:"read"`
 
 		StateMinerSectorAllocated func(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (bool, error) `perm:"read"`
 
@@ -2851,17 +2845,6 @@ func (s *FullNodeStub) StateMinerDeadlines(p0 context.Context, p1 address.Addres
 	return *new([]Deadline), ErrNotSupported
 }
 
-func (s *FullNodeStruct) StateMinerDeadlinesUint(p0 context.Context, p1 address.Address, p2 types.TipSetKey) ([]DeadlineUint, error) {
-	if s.Internal.StateMinerDeadlinesUint == nil {
-		return *new([]DeadlineUint), ErrNotSupported
-	}
-	return s.Internal.StateMinerDeadlinesUint(p0, p1, p2)
-}
-
-func (s *FullNodeStub) StateMinerDeadlinesUint(p0 context.Context, p1 address.Address, p2 types.TipSetKey) ([]DeadlineUint, error) {
-	return *new([]DeadlineUint), ErrNotSupported
-}
-
 func (s *FullNodeStruct) StateMinerFaults(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (bitfield.BitField, error) {
 	if s.Internal.StateMinerFaults == nil {
 		return *new(bitfield.BitField), ErrNotSupported
@@ -2906,17 +2889,6 @@ func (s *FullNodeStub) StateMinerPartitions(p0 context.Context, p1 address.Addre
 	return *new([]Partition), ErrNotSupported
 }
 
-func (s *FullNodeStruct) StateMinerPartitionsUint(p0 context.Context, p1 address.Address, p2 uint64, p3 types.TipSetKey) ([]PartitionUint, error) {
-	if s.Internal.StateMinerPartitionsUint == nil {
-		return *new([]PartitionUint), ErrNotSupported
-	}
-	return s.Internal.StateMinerPartitionsUint(p0, p1, p2, p3)
-}
-
-func (s *FullNodeStub) StateMinerPartitionsUint(p0 context.Context, p1 address.Address, p2 uint64, p3 types.TipSetKey) ([]PartitionUint, error) {
-	return *new([]PartitionUint), ErrNotSupported
-}
-
 func (s *FullNodeStruct) StateMinerPower(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*MinerPower, error) {
 	if s.Internal.StateMinerPower == nil {
 		return nil, ErrNotSupported
@@ -2959,17 +2931,6 @@ func (s *FullNodeStruct) StateMinerRecoveries(p0 context.Context, p1 address.Add
 
 func (s *FullNodeStub) StateMinerRecoveries(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (bitfield.BitField, error) {
 	return *new(bitfield.BitField), ErrNotSupported
-}
-
-func (s *FullNodeStruct) StateMinerSectorAllCount(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (MinerAllSectors, error) {
-	if s.Internal.StateMinerSectorAllCount == nil {
-		return *new(MinerAllSectors), ErrNotSupported
-	}
-	return s.Internal.StateMinerSectorAllCount(p0, p1, p2)
-}
-
-func (s *FullNodeStub) StateMinerSectorAllCount(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (MinerAllSectors, error) {
-	return *new(MinerAllSectors), ErrNotSupported
 }
 
 func (s *FullNodeStruct) StateMinerSectorAllocated(p0 context.Context, p1 address.Address, p2 abi.SectorNumber, p3 types.TipSetKey) (bool, error) {
