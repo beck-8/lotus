@@ -449,8 +449,12 @@ type FullNode interface {
 	StateMinerInfo(context.Context, address.Address, types.TipSetKey) (MinerInfo, error) //perm:read
 	// StateMinerDeadlines returns all the proving deadlines for the given miner
 	StateMinerDeadlines(context.Context, address.Address, types.TipSetKey) ([]Deadline, error) //perm:read
+	// StateMinerDeadlinesUint returns all the proving deadlines Uint for the given miner
+	StateMinerDeadlinesUint(context.Context, address.Address, types.TipSetKey) ([]DeadlineUint, error) //perm:read
 	// StateMinerPartitions returns all partitions in the specified deadline
 	StateMinerPartitions(ctx context.Context, m address.Address, dlIdx uint64, tsk types.TipSetKey) ([]Partition, error) //perm:read
+	// StateMinerPartitionsUint returns all partitions in the specified deadline Uint
+	StateMinerPartitionsUint(ctx context.Context, m address.Address, dlIdx uint64, tsk types.TipSetKey) ([]PartitionUint, error) //perm:read
 	// StateMinerFaults returns a bitfield indicating the faulty sectors of the given miner
 	StateMinerFaults(context.Context, address.Address, types.TipSetKey) (bitfield.BitField, error) //perm:read
 	// StateAllMinerFaults returns all non-expired Faults that occur within lookback epochs of the given tipset
@@ -552,7 +556,8 @@ type FullNode interface {
 	StateChangedActors(context.Context, cid.Cid, cid.Cid) (map[string]types.Actor, error) //perm:read
 	// StateMinerSectorCount returns the number of sectors in a miner's sector set and proving set
 	StateMinerSectorCount(context.Context, address.Address, types.TipSetKey) (MinerSectors, error) //perm:read
-	// StateMinerAllocated returns a bitfield containing all sector numbers marked as allocated in miner state
+  StateMinerSectorAllCount(context.Context, address.Address, types.TipSetKey) (MinerAllSectors, error) //perm:read
+  // StateMinerAllocated returns a bitfield containing all sector numbers marked as allocated in miner state
 	StateMinerAllocated(context.Context, address.Address, types.TipSetKey) (*bitfield.BitField, error) //perm:read
 	// StateCompute is a flexible command that applies the given messages on the given tipset.
 	// The messages are run as though the VM were at the provided height.
@@ -785,6 +790,15 @@ type MinerSectors struct {
 	Faulty uint64
 }
 
+type MinerAllSectors struct {
+	All uint64
+	// Live sectors that should be proven.
+	Live uint64
+	// Sectors actively contributing to power.
+	Active uint64
+	// Sectors with failed proofs.
+	Faulty uint64
+}
 type ImportRes struct {
 	Root     cid.Cid
 	ImportID imports.ID
@@ -1200,12 +1214,25 @@ type Deadline struct {
 	DisputableProofCount uint64
 }
 
+type DeadlineUint struct {
+	PostSubmissions      []uint64
+	DisputableProofCount uint64
+}
+
 type Partition struct {
 	AllSectors        bitfield.BitField
 	FaultySectors     bitfield.BitField
 	RecoveringSectors bitfield.BitField
 	LiveSectors       bitfield.BitField
 	ActiveSectors     bitfield.BitField
+}
+
+type PartitionUint struct {
+	AllSectors        []uint64
+	FaultySectors     []uint64
+	RecoveringSectors []uint64
+	LiveSectors       []uint64
+	ActiveSectors     []uint64
 }
 
 type Fault struct {

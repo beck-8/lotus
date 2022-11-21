@@ -200,14 +200,17 @@
   * [StateMinerAllocated](#StateMinerAllocated)
   * [StateMinerAvailableBalance](#StateMinerAvailableBalance)
   * [StateMinerDeadlines](#StateMinerDeadlines)
+  * [StateMinerDeadlinesUint](#StateMinerDeadlinesUint)
   * [StateMinerFaults](#StateMinerFaults)
   * [StateMinerInfo](#StateMinerInfo)
   * [StateMinerInitialPledgeCollateral](#StateMinerInitialPledgeCollateral)
   * [StateMinerPartitions](#StateMinerPartitions)
+  * [StateMinerPartitionsUint](#StateMinerPartitionsUint)
   * [StateMinerPower](#StateMinerPower)
   * [StateMinerPreCommitDepositForPower](#StateMinerPreCommitDepositForPower)
   * [StateMinerProvingDeadline](#StateMinerProvingDeadline)
   * [StateMinerRecoveries](#StateMinerRecoveries)
+  * [StateMinerSectorAllCount](#StateMinerSectorAllCount)
   * [StateMinerSectorAllocated](#StateMinerSectorAllocated)
   * [StateMinerSectorCount](#StateMinerSectorCount)
   * [StateMinerSectors](#StateMinerSectors)
@@ -6429,6 +6432,29 @@ Response:
 ]
 ```
 
+### StateMinerDeadlinesUint
+StateMinerDeadlinesUint returns all the proving deadlines Uint for the given miner
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "f01234",
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ]
+]
+```
+
+Response: `null`
+
 ### StateMinerFaults
 StateMinerFaults returns a bitfield indicating the faulty sectors of the given miner
 
@@ -6599,6 +6625,30 @@ Response:
 ]
 ```
 
+### StateMinerPartitionsUint
+StateMinerPartitionsUint returns all partitions in the specified deadline Uint
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "f01234",
+  42,
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ]
+]
+```
+
+Response: `null`
+
 ### StateMinerPower
 StateMinerPower returns the power of the indicated miner
 
@@ -6738,6 +6788,36 @@ Response:
   5,
   1
 ]
+```
+
+### StateMinerSectorAllCount
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "f01234",
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ]
+]
+```
+
+Response:
+```json
+{
+  "All": 42,
+  "Live": 42,
+  "Active": 42,
+  "Faulty": 42
+}
 ```
 
 ### StateMinerSectorAllocated
