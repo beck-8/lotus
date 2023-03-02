@@ -290,14 +290,14 @@ func startNodes(
 	ens.InterconnectAll().BeginMining(blocktime)
 
 	// Create a gateway server in front of the full node
-	gwapi := gateway.NewNode(full, lookbackCap, stateWaitLookbackLimit, 0, time.Minute)
+	gwapi := gateway.NewNode(full, nil, lookbackCap, stateWaitLookbackLimit, 0, time.Minute)
 	handler, err := gateway.Handler(gwapi, full, 0, 0)
 	require.NoError(t, err)
 
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	srv, _ := kit.CreateRPCServer(t, handler, l)
+	srv, _, _ := kit.CreateRPCServer(t, handler, l)
 
 	// Create a gateway client API that connects to the gateway server
 	var gapi api.Gateway

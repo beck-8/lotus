@@ -4,7 +4,6 @@ import (
 	"github.com/ipfs/go-cid"
 
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/lotus/storage/sealer"
 )
 
 // // NOTE: ONLY PUT STRUCT DEFINITIONS IN THIS FILE
@@ -27,6 +26,8 @@ type FullNode struct {
 	Wallet     Wallet
 	Fees       FeeConfig
 	Chainstore Chainstore
+	Cluster    UserRaftConfig
+	Fevm       FevmConfig
 }
 
 // // Common
@@ -168,7 +169,6 @@ type DealmakingConfig struct {
 }
 
 type IndexProviderConfig struct {
-
 	// Enable set whether to enable indexing announcement to the network and expose endpoints that
 	// allow indexer nodes to process announcements. Enabled by default.
 	Enable bool
@@ -229,6 +229,23 @@ type ProvingConfig struct {
 	// After changing this option, confirm that the new value works in your setup by invoking
 	// 'lotus-miner proving compute window-post 0'
 	ParallelCheckLimit int
+
+	// Maximum amount of time a proving pre-check can take for a sector. If the check times out the sector will be skipped
+	//
+	// WARNING: Setting this value too low risks in sectors being skipped even though they are accessible, just reading the
+	// test challenge took longer than this timeout
+	// WARNING: Setting this value too high risks missing PoSt deadline in case IO operations related to this sector are
+	// blocked (e.g. in case of disconnected NFS mount)
+	SingleCheckTimeout Duration
+
+	// Maximum amount of time a proving pre-check can take for an entire partition. If the check times out, sectors in
+	// the partition which didn't get checked on time will be skipped
+	//
+	// WARNING: Setting this value too low risks in sectors being skipped even though they are accessible, just reading the
+	// test challenge took longer than this timeout
+	// WARNING: Setting this value too high risks missing PoSt deadline in case IO operations related to this partition are
+	// blocked or slow
+	PartitionCheckTimeout Duration
 
 	// Disable Window PoSt computation on the lotus-miner process even if no window PoSt workers are present.
 	//
@@ -452,7 +469,7 @@ type SealerConfig struct {
 	// ResourceFiltering instructs the system which resource filtering strategy
 	// to use when evaluating tasks against this worker. An empty value defaults
 	// to "hardware".
-	ResourceFiltering sealer.ResourceFilteringStrategy
+	ResourceFiltering ResourceFilteringStrategy
 }
 
 type BatchFeeConfig struct {
@@ -546,6 +563,19 @@ type Pubsub struct {
 	DirectPeers           []string
 	IPColocationWhitelist []string
 	RemoteTracer          string
+	// Path to file that will be used to output tracer content in JSON format.
+	// If present tracer will save data to defined file.
+	// Format: file path
+	JsonTracer string
+	// Connection string for elasticsearch instance.
+	// If present tracer will save data to elasticsearch.
+	// Format: https://<username>:<password>@<elasticsearch_url>:<port>/
+	ElasticSearchTracer string
+	// Name of elasticsearch index that will be used to save tracer data.
+	// This property is used only if ElasticSearchTracer propery is set.
+	ElasticSearchIndex string
+	// Auth token that will be passed with logs to elasticsearch - used for weighted peers score.
+	TracerSourceAuth string
 }
 
 type Chainstore struct {
@@ -555,7 +585,7 @@ type Chainstore struct {
 
 type Splitstore struct {
 	// ColdStoreType specifies the type of the coldstore.
-	// It can be "universal" (default) or "discard" for discarding cold blocks.
+	// It can be "messages" (default) to store only messages, "universal" to store all chain state or "discard" for discarding cold blocks.
 	ColdStoreType string
 	// HotStoreType specifies the type of the hotstore.
 	// Only currently supported value is "badger".
@@ -571,21 +601,6 @@ type Splitstore struct {
 	// A value of 0 disables, while a value 1 will do full GC in every compaction.
 	// Default is 20 (about once a week).
 	HotStoreFullGCFrequency uint64
-
-	// EnableColdStoreAutoPrune turns on compaction of the cold store i.e. pruning
-	// where hotstore compaction occurs every finality epochs pruning happens every 3 finalities
-	// Default is false
-	EnableColdStoreAutoPrune bool
-
-	// ColdStoreFullGCFrequency specifies how often to performa a full (moving) GC on the coldstore.
-	// Only applies if auto prune is enabled.  A value of 0 disables while a value of 1 will do
-	// full GC in every prune.
-	// Default is 7 (about once every a week)
-	ColdStoreFullGCFrequency uint64
-
-	// ColdStoreRetention specifies the retention policy for data reachable from the chain, in
-	// finalities beyond the compaction boundary, default is 0, -1 retains everything
-	ColdStoreRetention int64
 }
 
 // // Full Node
@@ -615,4 +630,80 @@ type Wallet struct {
 
 type FeeConfig struct {
 	DefaultMaxFee types.FIL
+}
+
+type UserRaftConfig struct {
+	// EXPERIMENTAL. config to enabled node cluster with raft consensus
+	ClusterModeEnabled bool
+	// A folder to store Raft's data.
+	DataFolder string
+	// InitPeersetMultiAddr provides the list of initial cluster peers for new Raft
+	// peers (with no prior state). It is ignored when Raft was already
+	// initialized or when starting in staging mode.
+	InitPeersetMultiAddr []string
+	// LeaderTimeout specifies how long to wait for a leader before
+	// failing an operation.
+	WaitForLeaderTimeout Duration
+	// NetworkTimeout specifies how long before a Raft network
+	// operation is timed out
+	NetworkTimeout Duration
+	// CommitRetries specifies how many times we retry a failed commit until
+	// we give up.
+	CommitRetries int
+	// How long to wait between retries
+	CommitRetryDelay Duration
+	// BackupsRotate specifies the maximum number of Raft's DataFolder
+	// copies that we keep as backups (renaming) after cleanup.
+	BackupsRotate int
+	// Tracing enables propagation of contexts across binary boundaries.
+	Tracing bool
+}
+
+type FevmConfig struct {
+	// EnableEthRPC enables eth_ rpc, and enables storing a mapping of eth transaction hashes to filecoin message Cids.
+	// This will also enable the RealTimeFilterAPI and HistoricFilterAPI by default, but they can be disabled by config options above.
+	EnableEthRPC bool
+
+	// EthTxHashMappingLifetimeDays the transaction hash lookup database will delete mappings that have been stored for more than x days
+	// Set to 0 to keep all mappings
+	EthTxHashMappingLifetimeDays int
+
+	Events Events
+}
+
+type Events struct {
+	// EnableEthRPC enables APIs that
+	// DisableRealTimeFilterAPI will disable the RealTimeFilterAPI that can create and query filters for actor events as they are emitted.
+	// The API is enabled when EnableEthRPC is true, but can be disabled selectively with this flag.
+	DisableRealTimeFilterAPI bool
+
+	// DisableHistoricFilterAPI will disable the HistoricFilterAPI that can create and query filters for actor events
+	// that occurred in the past. HistoricFilterAPI maintains a queryable index of events.
+	// The API is enabled when EnableEthRPC is true, but can be disabled selectively with this flag.
+	DisableHistoricFilterAPI bool
+
+	// FilterTTL specifies the time to live for actor event filters. Filters that haven't been accessed longer than
+	// this time become eligible for automatic deletion.
+	FilterTTL Duration
+
+	// MaxFilters specifies the maximum number of filters that may exist at any one time.
+	MaxFilters int
+
+	// MaxFilterResults specifies the maximum number of results that can be accumulated by an actor event filter.
+	MaxFilterResults int
+
+	// MaxFilterHeightRange specifies the maximum range of heights that can be used in a filter (to avoid querying
+	// the entire chain)
+	MaxFilterHeightRange uint64
+
+	// DatabasePath is the full path to a sqlite database that will be used to index actor events to
+	// support the historic filter APIs. If the database does not exist it will be created. The directory containing
+	// the database must already exist and be writeable. If a relative path is provided here, sqlite treats it as
+	// relative to the CWD (current working directory).
+	DatabasePath string
+
+	// Others, not implemented yet:
+	// Set a limit on the number of active websocket subscriptions (may be zero)
+	// Set a timeout for subscription clients
+	// Set upper bound on index size
 }

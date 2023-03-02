@@ -44,7 +44,9 @@ import (
 	"github.com/filecoin-project/lotus/chain/consensus/filcns"
 	"github.com/filecoin-project/lotus/chain/state"
 	"github.com/filecoin-project/lotus/chain/stmgr"
+	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
+	cliutil "github.com/filecoin-project/lotus/cli/util"
 )
 
 var StateCmd = &cli.Command{
@@ -229,7 +231,7 @@ var StateMinerInfo = &cli.Command{
 			return xerrors.Errorf("getting miner info: %w", err)
 		}
 
-		fmt.Printf("Proving Period Start:\t%s\n", EpochTime(cd.CurrentEpoch, cd.PeriodStart))
+		fmt.Printf("Proving Period Start:\t%s\n", cliutil.EpochTime(cd.CurrentEpoch, cd.PeriodStart))
 
 		return nil
 	},
@@ -292,6 +294,28 @@ func ParseTipSetRef(ctx context.Context, api v0api.FullNode, tss string) (*types
 	}
 
 	return ts, nil
+}
+
+func ParseTipSetRefOffline(ctx context.Context, cs *store.ChainStore, tss string) (*types.TipSet, error) {
+	switch {
+
+	case tss == "" || tss == "@head":
+		return cs.GetHeaviestTipSet(), nil
+
+	case tss[0] != '@':
+		cids, err := ParseTipSetString(tss)
+		if err != nil {
+			return nil, xerrors.Errorf("failed to parse tipset (%q): %w", tss, err)
+		}
+		return cs.LoadTipSet(ctx, types.NewTipSetKey(cids...))
+
+	default:
+		var h uint64
+		if _, err := fmt.Sscanf(tss, "@%d", &h); err != nil {
+			return nil, xerrors.Errorf("parsing height tipset ref: %w", err)
+		}
+		return cs.GetTipsetByHeight(ctx, abi.ChainEpoch(h), cs.GetHeaviestTipSet(), true)
+	}
 }
 
 var StatePowerCmd = &cli.Command{
@@ -752,6 +776,9 @@ var StateGetActorCmd = &cli.Command{
 		fmt.Printf("Nonce:\t\t%d\n", a.Nonce)
 		fmt.Printf("Code:\t\t%s (%s)\n", a.Code, strtype)
 		fmt.Printf("Head:\t\t%s\n", a.Head)
+		if a.Address != nil {
+			fmt.Printf("Delegated address:\t\t%s\n", a.Address)
+		}
 
 		return nil
 	},
@@ -1297,7 +1324,7 @@ var compStateMsg = `
   {{end}}
   </td></tr>
   {{end}}
-  {{with SumGas .GasCharges}}
+  {{with sumGas .GasCharges}}
   <tr class="sum"><td><b>Sum</b></td>
   {{template "gasC" .}}
   <td>{{if PrintTiming}}{{.TimeTaken}}{{end}}</td>
@@ -1327,11 +1354,11 @@ func ComputeStateHTMLTempl(w io.Writer, ts *types.TipSet, o *api.ComputeStateOut
 		"GetMethod":   getMethod,
 		"ToFil":       toFil,
 		"JsonParams":  JsonParams,
-		"JsonReturn":  jsonReturn,
+		"JsonReturn":  JsonReturn,
 		"IsSlow":      isSlow,
 		"IsVerySlow":  isVerySlow,
 		"IntExit":     func(i exitcode.ExitCode) int64 { return int64(i) },
-		"SumGas":      sumGas,
+		"sumGas":      types.SumGas,
 		"CodeStr":     codeStr,
 		"Call":        call,
 		"PrintTiming": func() bool { return printTiming },
@@ -1399,21 +1426,6 @@ func isVerySlow(t time.Duration) bool {
 	return t > 50*time.Millisecond
 }
 
-func sumGas(changes []*types.GasTrace) types.GasTrace {
-	var out types.GasTrace
-	for _, gc := range changes {
-		out.TotalGas += gc.TotalGas
-		out.ComputeGas += gc.ComputeGas
-		out.StorageGas += gc.StorageGas
-
-		out.TotalVirtualGas += gc.TotalVirtualGas
-		out.VirtualComputeGas += gc.VirtualComputeGas
-		out.VirtualStorageGas += gc.VirtualStorageGas
-	}
-
-	return out
-}
-
 func JsonParams(code cid.Cid, method abi.MethodNum, params []byte) (string, error) {
 	p, err := stmgr.GetParamType(filcns.NewActorRegistry(), code, method) // todo use api for correct actor registry
 	if err != nil {
@@ -1428,7 +1440,7 @@ func JsonParams(code cid.Cid, method abi.MethodNum, params []byte) (string, erro
 	return string(b), err
 }
 
-func jsonReturn(code cid.Cid, method abi.MethodNum, ret []byte) (string, error) {
+func JsonReturn(code cid.Cid, method abi.MethodNum, ret []byte) (string, error) {
 	methodMeta, found := filcns.NewActorRegistry().Methods[code][method] // TODO: use remote
 	if !found {
 		return "", fmt.Errorf("method %d not found on actor %s", method, code)
@@ -1537,7 +1549,7 @@ func printReceiptReturn(ctx context.Context, api v0api.FullNode, m *types.Messag
 		return err
 	}
 
-	jret, err := jsonReturn(act.Code, m.Method, r.Return)
+	jret, err := JsonReturn(act.Code, m.Method, r.Return)
 	if err != nil {
 		return err
 	}
@@ -1677,7 +1689,7 @@ var StateCallCmd = &cli.Command{
 				return xerrors.Errorf("getting actor: %w", err)
 			}
 
-			retStr, err := jsonReturn(act.Code, abi.MethodNum(method), ret.MsgRct.Return)
+			retStr, err := JsonReturn(act.Code, abi.MethodNum(method), ret.MsgRct.Return)
 			if err != nil {
 				return xerrors.Errorf("decoding return: %w", err)
 			}
@@ -1793,8 +1805,8 @@ var StateSectorCmd = &cli.Command{
 		}
 		fmt.Println("DealIDs: ", si.DealIDs)
 		fmt.Println()
-		fmt.Println("Activation: ", EpochTimeTs(ts.Height(), si.Activation, ts))
-		fmt.Println("Expiration: ", EpochTimeTs(ts.Height(), si.Expiration, ts))
+		fmt.Println("Activation: ", cliutil.EpochTimeTs(ts.Height(), si.Activation, ts))
+		fmt.Println("Expiration: ", cliutil.EpochTimeTs(ts.Height(), si.Expiration, ts))
 		fmt.Println()
 		fmt.Println("DealWeight: ", si.DealWeight)
 		fmt.Println("VerifiedDealWeight: ", si.VerifiedDealWeight)

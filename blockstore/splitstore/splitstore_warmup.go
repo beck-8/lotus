@@ -5,9 +5,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
+	blocks "github.com/ipfs/go-libipfs/blocks"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-state-types/abi"
@@ -110,7 +110,7 @@ func (s *SplitStore) doWarmup(curTs *types.TipSet) error {
 			mx.Unlock()
 
 			return nil
-		})
+		}, func(cid.Cid) error { return nil })
 
 	if err != nil {
 		return err

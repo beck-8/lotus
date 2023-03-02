@@ -11,8 +11,8 @@ import (
 
 	gomock "github.com/golang/mock/gomock"
 	uuid "github.com/google/uuid"
-	blocks "github.com/ipfs/go-block-format"
 	cid "github.com/ipfs/go-cid"
+	blocks "github.com/ipfs/go-libipfs/blocks"
 	metrics "github.com/libp2p/go-libp2p/core/metrics"
 	network0 "github.com/libp2p/go-libp2p/core/network"
 	peer "github.com/libp2p/go-libp2p/core/peer"
@@ -2158,6 +2158,21 @@ func (mr *MockFullNodeMockRecorder) Shutdown(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Shutdown", reflect.TypeOf((*MockFullNode)(nil).Shutdown), arg0)
 }
 
+// StartTime mocks base method.
+func (m *MockFullNode) StartTime(arg0 context.Context) (time.Time, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StartTime", arg0)
+	ret0, _ := ret[0].(time.Time)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StartTime indicates an expected call of StartTime.
+func (mr *MockFullNodeMockRecorder) StartTime(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartTime", reflect.TypeOf((*MockFullNode)(nil).StartTime), arg0)
+}
+
 // StateAccountKey mocks base method.
 func (m *MockFullNode) StateAccountKey(arg0 context.Context, arg1 address.Address, arg2 types.TipSetKey) (address.Address, error) {
 	m.ctrl.T.Helper()
@@ -2234,10 +2249,10 @@ func (mr *MockFullNodeMockRecorder) StateCall(arg0, arg1, arg2 interface{}) *gom
 }
 
 // StateChangedActors mocks base method.
-func (m *MockFullNode) StateChangedActors(arg0 context.Context, arg1, arg2 cid.Cid) (map[string]types.Actor, error) {
+func (m *MockFullNode) StateChangedActors(arg0 context.Context, arg1, arg2 cid.Cid) (map[string]types.ActorV5, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StateChangedActors", arg0, arg1, arg2)
-	ret0, _ := ret[0].(map[string]types.Actor)
+	ret0, _ := ret[0].(map[string]types.ActorV5)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -2309,10 +2324,10 @@ func (mr *MockFullNodeMockRecorder) StateDecodeParams(arg0, arg1, arg2, arg3, ar
 }
 
 // StateGetActor mocks base method.
-func (m *MockFullNode) StateGetActor(arg0 context.Context, arg1 address.Address, arg2 types.TipSetKey) (*types.Actor, error) {
+func (m *MockFullNode) StateGetActor(arg0 context.Context, arg1 address.Address, arg2 types.TipSetKey) (*types.ActorV5, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StateGetActor", arg0, arg1, arg2)
-	ret0, _ := ret[0].(*types.Actor)
+	ret0, _ := ret[0].(*types.ActorV5)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

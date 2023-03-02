@@ -105,8 +105,18 @@ func (ss *syscallShim) VerifyConsensusFault(a, b, extra []byte) (*runtime7.Conse
 		return nil, xerrors.Errorf("cannot decode first block header: %w", decodeErr)
 	}
 
+	// A _valid_ block must use an ID address, but that's not what we're checking here. We're
+	// just making sure that adding additional address protocols won't lead to consensus issues.
+	if !abi.AddressValidForNetworkVersion(blockA.Miner, ss.networkVersion) {
+		return nil, xerrors.Errorf("address protocol unsupported in current network version: %d", blockA.Miner.Protocol())
+	}
+
 	if decodeErr := blockB.UnmarshalCBOR(bytes.NewReader(b)); decodeErr != nil {
 		return nil, xerrors.Errorf("cannot decode second block header: %f", decodeErr)
+	}
+
+	if !abi.AddressValidForNetworkVersion(blockB.Miner, ss.networkVersion) {
+		return nil, xerrors.Errorf("address protocol unsupported in current network version: %d", blockB.Miner.Protocol())
 	}
 
 	// workaround chain halt
@@ -168,6 +178,10 @@ func (ss *syscallShim) VerifyConsensusFault(a, b, extra []byte) (*runtime7.Conse
 	if len(extra) > 0 {
 		if decodeErr := blockC.UnmarshalCBOR(bytes.NewReader(extra)); decodeErr != nil {
 			return nil, xerrors.Errorf("cannot decode extra: %w", decodeErr)
+		}
+
+		if !abi.AddressValidForNetworkVersion(blockC.Miner, ss.networkVersion) {
+			return nil, xerrors.Errorf("address protocol unsupported in current network version: %d", blockC.Miner.Protocol())
 		}
 
 		if types.CidArrsEqual(blockA.Parents, blockC.Parents) && blockA.Height == blockC.Height &&
@@ -241,7 +255,7 @@ func (ss *syscallShim) workerKeyAtLookback(height abi.ChainEpoch) (address.Addre
 		return address.Undef, err
 	}
 
-	return ResolveToKeyAddr(ss.cstate, ss.cst, info.Worker)
+	return ResolveToDeterministicAddr(ss.cstate, ss.cst, info.Worker)
 }
 
 func (ss *syscallShim) VerifyPoSt(info proof7.WindowPoStVerifyInfo) error {
@@ -256,8 +270,8 @@ func (ss *syscallShim) VerifyPoSt(info proof7.WindowPoStVerifyInfo) error {
 }
 
 func (ss *syscallShim) VerifySeal(info proof7.SealVerifyInfo) error {
-	//_, span := trace.StartSpan(ctx, "ValidatePoRep")
-	//defer span.End()
+	// _, span := trace.StartSpan(ctx, "ValidatePoRep")
+	// defer span.End()
 
 	miner, err := address.NewIDAddress(uint64(info.Miner))
 	if err != nil {
@@ -270,7 +284,7 @@ func (ss *syscallShim) VerifySeal(info proof7.SealVerifyInfo) error {
 
 	log.Debugf("Verif r:%s; d:%s; m:%s; t:%x; s:%x; N:%d; p:%x", info.SealedCID, info.UnsealedCID, miner, ticket, seed, info.SectorID.Number, proof)
 
-	//func(ctx context.Context, maddr address.Address, ssize abi.SectorSize, commD, commR, ticket, proof, seed []byte, sectorID abi.SectorNumber)
+	// func(ctx context.Context, maddr address.Address, ssize abi.SectorSize, commD, commR, ticket, proof, seed []byte, sectorID abi.SectorNumber)
 	ok, err := ss.verifier.VerifySeal(info)
 	if err != nil {
 		return xerrors.Errorf("failed to validate PoRep: %w", err)
@@ -311,7 +325,7 @@ func (ss *syscallShim) VerifyReplicaUpdate(update proof7.ReplicaUpdateInfo) erro
 func (ss *syscallShim) VerifySignature(sig crypto.Signature, addr address.Address, input []byte) error {
 	// TODO: in genesis setup, we are currently faking signatures
 
-	kaddr, err := ResolveToKeyAddr(ss.cstate, ss.cst, addr)
+	kaddr, err := ResolveToDeterministicAddr(ss.cstate, ss.cst, addr)
 	if err != nil {
 		return err
 	}

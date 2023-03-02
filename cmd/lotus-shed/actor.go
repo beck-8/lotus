@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"os"
 
@@ -33,6 +34,7 @@ var actorCmd = &cli.Command{
 		actorControl,
 		actorProposeChangeWorker,
 		actorConfirmChangeWorker,
+		actorGetMethodNum,
 	},
 }
 
@@ -421,17 +423,17 @@ var actorControlSet = &cli.Command{
 			Usage: "specify the address of miner actor",
 		},
 		&cli.BoolFlag{
+			Name:  "dump-bytes",
+			Usage: "Dumps the bytes of the message that would propose this change",
+			Value: false,
+		},
+		&cli.BoolFlag{
 			Name:  "really-do-it",
 			Usage: "Actually send transaction performing the action",
 			Value: false,
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-		if !cctx.Bool("really-do-it") {
-			fmt.Println("Pass --really-do-it to actually execute this action")
-			return nil
-		}
-
 		var maddr address.Address
 		if act := cctx.String("actor"); act != "" {
 			var err error
@@ -521,14 +523,36 @@ var actorControlSet = &cli.Command{
 			return xerrors.Errorf("serializing params: %w", err)
 		}
 
-		smsg, err := nodeAPI.MpoolPushMessage(ctx, &types.Message{
+		msg := &types.Message{
 			From:   mi.Owner,
 			To:     maddr,
 			Method: builtin.MethodsMiner.ChangeWorkerAddress,
-
 			Value:  big.Zero(),
 			Params: sp,
-		}, nil)
+		}
+
+		if cctx.Bool("dump-bytes") {
+
+			msg, err = nodeAPI.GasEstimateMessageGas(ctx, msg, nil, types.EmptyTSK)
+			if err != nil {
+				return err
+			}
+
+			msgBytes, err := msg.Serialize()
+			if err != nil {
+				return err
+			}
+
+			fmt.Fprintln(cctx.App.Writer, hex.EncodeToString(msgBytes))
+			return nil
+		}
+
+		if !cctx.Bool("really-do-it") {
+			fmt.Fprintln(cctx.App.Writer, "Pass --really-do-it to actually execute this action")
+			return nil
+		}
+
+		smsg, err := nodeAPI.MpoolPushMessage(ctx, msg, nil)
 		if err != nil {
 			return xerrors.Errorf("mpool push: %w", err)
 		}
@@ -754,7 +778,7 @@ var actorConfirmChangeWorker = &cli.Command{
 		smsg, err := nodeAPI.MpoolPushMessage(ctx, &types.Message{
 			From:   mi.Owner,
 			To:     maddr,
-			Method: builtin.MethodsMiner.ConfirmUpdateWorkerKey,
+			Method: builtin.MethodsMiner.ConfirmChangeWorkerAddress,
 			Value:  big.Zero(),
 		}, nil)
 		if err != nil {
@@ -782,6 +806,27 @@ var actorConfirmChangeWorker = &cli.Command{
 		if mi.Worker != newAddr {
 			return fmt.Errorf("Confirmed worker address change not reflected on chain: expected '%s', found '%s'", newAddr, mi.Worker)
 		}
+
+		return nil
+	},
+}
+
+var actorGetMethodNum = &cli.Command{
+	Name:      "generate-method-num",
+	Usage:     "Generate method number from method name",
+	ArgsUsage: "[methodName]",
+	Action: func(cctx *cli.Context) error {
+		if !cctx.Args().Present() {
+			return fmt.Errorf("must pass methodNum")
+		}
+
+		methodName := cctx.Args().First()
+		methodNum, err := builtin.GenerateFRCMethodNum(methodName)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("Method Num: ", methodNum)
 
 		return nil
 	},

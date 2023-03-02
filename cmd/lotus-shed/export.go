@@ -15,11 +15,11 @@ import (
 	"github.com/dgraph-io/badger/v2"
 	"github.com/dgraph-io/badger/v2/pb"
 	"github.com/dustin/go-humanize"
-	block "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-cid"
 	offline "github.com/ipfs/go-ipfs-exchange-offline"
 	ipld "github.com/ipfs/go-ipld-format"
+	block "github.com/ipfs/go-libipfs/blocks"
 	"github.com/ipfs/go-merkledag"
 	"github.com/ipld/go-car"
 	"github.com/multiformats/go-base32"
@@ -32,7 +32,6 @@ import (
 
 	"github.com/filecoin-project/lotus/blockstore"
 	"github.com/filecoin-project/lotus/chain/store"
-	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/cmd/lotus-shed/shedgen"
 	"github.com/filecoin-project/lotus/node/repo"
@@ -125,22 +124,9 @@ var exportChainCmd = &cli.Command{
 		fullstate := cctx.Bool("full-state")
 		skipoldmsgs := cctx.Bool("skip-old-msgs")
 
-		var ts *types.TipSet
-		if tss := cctx.String("tipset"); tss != "" {
-			cids, err := lcli.ParseTipSetString(tss)
-			if err != nil {
-				return xerrors.Errorf("failed to parse tipset (%q): %w", tss, err)
-			}
-
-			tsk := types.NewTipSetKey(cids...)
-
-			selts, err := cs.LoadTipSet(context.Background(), tsk)
-			if err != nil {
-				return xerrors.Errorf("loading tipset: %w", err)
-			}
-			ts = selts
-		} else {
-			ts = cs.GetHeaviestTipSet()
+		ts, err := lcli.ParseTipSetRefOffline(ctx, cs, cctx.String("tipset"))
+		if err != nil {
+			return err
 		}
 
 		if fullstate {

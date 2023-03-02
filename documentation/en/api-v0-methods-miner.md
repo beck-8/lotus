@@ -167,6 +167,8 @@
   * [SectorsSummary](#SectorsSummary)
   * [SectorsUnsealPiece](#SectorsUnsealPiece)
   * [SectorsUpdate](#SectorsUpdate)
+* [Start](#Start)
+  * [StartTime](#StartTime)
 * [Storage](#Storage)
   * [StorageAddLocal](#StorageAddLocal)
   * [StorageAttach](#StorageAttach)
@@ -413,8 +415,7 @@ Inputs:
       },
       "ProofType": 8
     }
-  ],
-  true
+  ]
 ]
 ```
 
@@ -463,7 +464,9 @@ Inputs:
     {
       "SealProof": 8,
       "SectorNumber": 9,
-      "SectorKey": null,
+      "SectorKey": {
+        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+      },
       "SealedCID": {
         "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
       }
@@ -471,7 +474,7 @@ Inputs:
   ],
   "Bw==",
   10101,
-  17
+  18
 ]
 ```
 
@@ -1278,8 +1281,12 @@ Response:
   "ProposalCid": {
     "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
   },
-  "AddFundsCid": null,
-  "PublishCid": null,
+  "AddFundsCid": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
+  "PublishCid": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
   "Miner": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
   "Client": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
   "State": 42,
@@ -1294,7 +1301,9 @@ Response:
     "Root": {
       "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
     },
-    "PieceCid": null,
+    "PieceCid": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
     "PieceSize": 1024,
     "RawBlockSize": 42
   },
@@ -1456,8 +1465,12 @@ Response:
     "ProposalCid": {
       "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
     },
-    "AddFundsCid": null,
-    "PublishCid": null,
+    "AddFundsCid": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    "PublishCid": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
     "Miner": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
     "Client": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
     "State": 42,
@@ -1472,7 +1485,9 @@ Response:
       "Root": {
         "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
       },
-      "PieceCid": null,
+      "PieceCid": {
+        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+      },
       "PieceSize": 1024,
       "RawBlockSize": 42
     },
@@ -1508,7 +1523,9 @@ Response:
     "Selector": {
       "Raw": "Ynl0ZSBhcnJheQ=="
     },
-    "PieceCID": null,
+    "PieceCID": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
     "PricePerByte": "0",
     "PaymentInterval": 42,
     "PaymentIntervalIncrease": 42,
@@ -2907,7 +2924,9 @@ Inputs:
   1024,
   {},
   {
-    "PublishCid": null,
+    "PublishCid": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
     "DealID": 5432,
     "DealProposal": {
       "PieceCID": {
@@ -2961,7 +2980,9 @@ Response:
     "FailedSectors": {
       "123": "can't acquire read lock"
     },
-    "Msg": null,
+    "Msg": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
     "Error": "string value"
   }
 ]
@@ -3155,7 +3176,9 @@ Response:
       123,
       124
     ],
-    "Msg": null,
+    "Msg": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
     "Error": "string value"
   }
 ]
@@ -3203,7 +3226,9 @@ Inputs:
           }
         },
         "DealInfo": {
-          "PublishCid": null,
+          "PublishCid": {
+            "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+          },
           "DealID": 5432,
           "DealProposal": {
             "PieceCID": {
@@ -3231,8 +3256,12 @@ Inputs:
     "TicketValue": "Bw==",
     "TicketEpoch": 10101,
     "PreCommit1Out": "Bw==",
-    "CommD": null,
-    "CommR": null,
+    "CommD": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    "CommR": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
     "PreCommitInfo": {
       "SealProof": 8,
       "SectorNumber": 9,
@@ -3244,10 +3273,14 @@ Inputs:
         5432
       ],
       "Expiration": 10101,
-      "UnsealedCid": null
+      "UnsealedCid": {
+        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+      }
     },
     "PreCommitDeposit": "0",
-    "PreCommitMessage": null,
+    "PreCommitMessage": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
     "PreCommitTipSet": [
       {
         "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
@@ -3259,7 +3292,9 @@ Inputs:
     "SeedValue": "Bw==",
     "SeedEpoch": 10101,
     "CommitProof": "Ynl0ZSBhcnJheQ==",
-    "CommitMessage": null,
+    "CommitMessage": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
     "Log": [
       {
         "Kind": "string value",
@@ -3395,7 +3430,12 @@ Perms: admin
 
 Inputs: `null`
 
-Response: `null`
+Response:
+```json
+{
+  "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+}
+```
 
 ### SectorTerminatePending
 SectorTerminatePending returns a list of pending sector terminations to be sent in the next batch message
@@ -3496,8 +3536,12 @@ Response:
 {
   "SectorID": 9,
   "State": "Proving",
-  "CommD": null,
-  "CommR": null,
+  "CommD": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
+  "CommR": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
   "Proof": "Ynl0ZSBhcnJheQ==",
   "Deals": [
     5432
@@ -3511,7 +3555,9 @@ Response:
         }
       },
       "DealInfo": {
-        "PublishCid": null,
+        "PublishCid": {
+          "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+        },
         "DealID": 5432,
         "DealProposal": {
           "PieceCID": {
@@ -3544,11 +3590,17 @@ Response:
     "Value": "Bw==",
     "Epoch": 10101
   },
-  "PreCommitMsg": null,
-  "CommitMsg": null,
+  "PreCommitMsg": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
+  "CommitMsg": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
   "Retries": 42,
   "ToUpgrade": true,
-  "ReplicaUpdateMessage": null,
+  "ReplicaUpdateMessage": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
   "LastErr": "string value",
   "Log": [
     {
@@ -3602,7 +3654,9 @@ Inputs:
   1040384,
   1024,
   "Bw==",
-  null
+  {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  }
 ]
 ```
 
@@ -3622,6 +3676,18 @@ Inputs:
 ```
 
 Response: `{}`
+
+## Start
+
+
+### StartTime
+
+
+Perms: read
+
+Inputs: `null`
+
+Response: `"0001-01-01T00:00:00Z"`
 
 ## Storage
 

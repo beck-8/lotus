@@ -3,9 +3,9 @@ package blockstore
 import (
 	"context"
 
-	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
+	blocks "github.com/ipfs/go-libipfs/blocks"
 )
 
 // NewMemory returns a temporary memory-backed blockstore.
@@ -46,6 +46,9 @@ func (m MemBlockstore) Get(ctx context.Context, k cid.Cid) (blocks.Block, error)
 	b, ok := m[string(k.Hash())]
 	if !ok {
 		return nil, ipld.ErrNotFound{Cid: k}
+	}
+	if b.Cid().Prefix().Codec != k.Prefix().Codec {
+		return blocks.NewBlockWithCid(b.RawData(), k)
 	}
 	return b, nil
 }

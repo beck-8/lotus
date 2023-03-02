@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	block "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
+	block "github.com/ipfs/go-libipfs/blocks"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
@@ -159,8 +159,16 @@ func (m *Message) ValidForBlockInclusion(minGas int64, version network.Version) 
 		return xerrors.New("invalid 'To' address")
 	}
 
+	if !abi.AddressValidForNetworkVersion(m.To, version) {
+		return xerrors.New("'To' address protocol unsupported for network version")
+	}
+
 	if m.From == address.Undef {
 		return xerrors.New("'From' address cannot be empty")
+	}
+
+	if !abi.AddressValidForNetworkVersion(m.From, version) {
+		return xerrors.New("'From' address protocol unsupported for network version")
 	}
 
 	if m.Value.Int == nil {

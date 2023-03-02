@@ -9,8 +9,8 @@ import (
 
 	"github.com/filecoin-project/lotus/blockstore"
 	"github.com/filecoin-project/lotus/chain/types"
-	"github.com/filecoin-project/lotus/storage/paths"
 	"github.com/filecoin-project/lotus/storage/sealer/fsutil"
+	"github.com/filecoin-project/lotus/storage/sealer/storiface"
 )
 
 // BlockstoreDomain represents the domain of a blockstore.
@@ -69,12 +69,15 @@ type LockedRepo interface {
 	// SplitstorePath returns the path for the SplitStore
 	SplitstorePath() (string, error)
 
+	// SqlitePath returns the path for the Sqlite database
+	SqlitePath() (string, error)
+
 	// Returns config in this repo
 	Config() (interface{}, error)
 	SetConfig(func(interface{})) error
 
-	GetStorage() (paths.StorageConfig, error)
-	SetStorage(func(*paths.StorageConfig)) error
+	GetStorage() (storiface.StorageConfig, error)
+	SetStorage(func(*storiface.StorageConfig)) error
 	Stat(path string) (fsutil.FsStat, error)
 	DiskUsage(path string) (int64, error)
 
