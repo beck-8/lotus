@@ -354,6 +354,14 @@ The minimum value is 518400 (6 months).`,
 			Name:  "provider-collateral",
 			Usage: "specify the requested provider collateral the miner should put up",
 		},
+		&cli.StringFlag{
+			Name:  "foldername",
+			Usage: "output foldername",
+		},
+		&cli.StringFlag{
+			Name:  "filename",
+			Usage: "output filename",
+		},
 		&CidBaseFlag,
 	},
 	Action: func(cctx *cli.Context) error {
@@ -506,9 +514,7 @@ The minimum value is 518400 (6 months).`,
 		if err != nil {
 			return err
 		}
-
-		afmt.Println(encoder.Encode(*proposal))
-
+		afmt.Printf("%s,%s,%s,%s,%s,%s,%d,%s\n", miner, encoder.Encode(*proposal), cctx.String("foldername"), cctx.String("filename"), data, ref.PieceCid, cctx.Int64("start-epoch"), a)
 		return nil
 	},
 }
