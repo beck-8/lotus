@@ -251,6 +251,10 @@ func (c *Cache) Get(key address.Address, nodeAPI v0api.FullNode, ctx context.Con
 func (c *Cache) Set(key address.Address, nodeAPI v0api.FullNode, ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	_, ok := c.store[key]
+	if ok {
+		return nil
+	}
 
 	c.store[key] = new(Info)
 	actor, err := nodeAPI.StateGetActor(ctx, key, types.EmptyTSK)
