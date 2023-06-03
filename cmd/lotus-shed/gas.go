@@ -11,7 +11,9 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/urfave/cli/v2"
+	"os"
 	"sync"
+	"time"
 )
 
 var gasCmd = &cli.Command{
@@ -25,22 +27,18 @@ var gasCmd = &cli.Command{
 var dcDailyGasCmd = &cli.Command{
 	Name:  "dcgas",
 	Usage: "calculate the dc gas of the whole network on the specified date",
-	//ArgsUsage: "[amount (FIL)]",
-	//Flags: []cli.Flag{
-	//	&cli.StringFlag{
-	//		Name:  "actor",
-	//		Usage: "specify the address of miner actor",
-	//	},
-	//	&cli.IntFlag{
-	//		Name:  "confidence",
-	//		Usage: "number of block confirmations to wait for",
-	//		Value: int(build.MessageConfidence),
-	//	},
-	//	&cli.BoolFlag{
-	//		Name:  "beneficiary",
-	//		Usage: "send withdraw message from the beneficiary address",
-	//	},
-	//},
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "date",
+			Value: "2020-08-25",
+			Usage: "specify date",
+		},
+		&cli.IntFlag{
+			Name:  "concurrency",
+			Usage: "how many concurrent request calculations",
+			Value: 50,
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 
 		nodeAPI, acloser, err := lcli.GetFullNodeAPI(cctx)
@@ -51,11 +49,12 @@ var dcDailyGasCmd = &cli.Command{
 
 		ctx := lcli.ReqContext(cctx)
 
-		startEpoch := 2908080
-		endEpoch := 2910960
-		cache := new(Cache)
-		fmt.Println(cache)
+		startEpoch, endEpoch, err := timeToHeight(cctx.String("date"))
+		if err != nil {
+			return err
+		}
 
+		cache := new(Cache)
 		cache.store = make(map[address.Address]*Info)
 
 		totalGas := abi.NewTokenAmount(0)
@@ -64,65 +63,72 @@ var dcDailyGasCmd = &cli.Command{
 		totalPower := abi.NewStoragePower(0)
 		var powerMu sync.Mutex
 
-		limit := make(chan int, 100)
+		limit := make(chan int, cctx.Int("concurrency"))
 		wg := sync.WaitGroup{}
 
-		//totalChan := make(chan abi.TokenAmount, 100)
-		//go func() {
-		//	for {
-		//		select {
-		//		case data := <-totalChan:
-		//			totalGas.Add(totalGas.Int, data.Int)
-		//			fmt.Println("total gas", float64(totalGas.Uint64())/1e18)
-		//		}
-		//	}
-		//
-		//}()
+		errChan := make(chan error, 2)
+		go func() {
+			for {
+				select {
+				case err := <-errChan:
+					fmt.Println(err)
+					os.Exit(1)
+				}
+			}
+		}()
 
 		for i := startEpoch; i <= endEpoch; i++ {
 
 			limit <- 0
-			fmt.Println(i)
+			fmt.Println("current height:", i)
 			wg.Add(1)
-			go func(i int) error {
+			go func(i int64) error {
 				defer func() {
 					<-limit
 					wg.Done()
 				}()
 				head, err := nodeAPI.ChainGetTipSetByHeight(ctx, abi.ChainEpoch(i), types.EmptyTSK)
 				if err != nil {
+					errChan <- err
 					return err
 				}
 				msgs, err := nodeAPI.ChainGetMessagesInTipset(ctx, head.Key())
 				if err != nil {
+					errChan <- err
 					return err
 				}
 				for _, msg := range msgs {
-					fmt.Println(msg, totalGas.String(), totalPower.String())
+					fmt.Println("current msg:", msg.Cid.String())
 					invocResult, err := nodeAPI.StateReplay(ctx, head.Key(), msg.Cid)
-					//fmt.Println(invocResult.Msg)
 					if err != nil {
-						fmt.Println(msg, err)
+						errChan <- err
 						return err
 					}
-					//if invocResult.MsgRct.ExitCode != 0 {
-					//	continue
-					//}
-					info, err := cache.Get(invocResult.Msg.To, nodeAPI, ctx)
-					if err != nil {
-						return err
+					//跳过失败的消息，因为暂时不好处理
+					if invocResult.MsgRct.ExitCode != 0 {
+						switch invocResult.Msg.Method {
+						case 6, 7, 25, 26:
+						default:
+							continue
+						}
+
 					}
-					if info.isMiner && info.isDC {
-						if invocResult.Msg.Method == 6 || invocResult.Msg.Method == 7 || invocResult.Msg.Method == 25 || invocResult.Msg.Method == 26 {
+					//屏蔽无关消息，否则cache会缓存全网的SP
+					switch invocResult.Msg.Method {
+					case 6, 7, 25, 26:
+						info, err := cache.Get(invocResult.Msg.To, nodeAPI, ctx)
+						if err != nil {
+							errChan <- err
+							return err
+						}
+						if info.isMiner && info.isDC {
 							gas := invocResult.GasCost.TotalCost
-							fmt.Println(invocResult.GasCost.TotalCost)
 							if len(invocResult.ExecutionTrace.Subcalls) > 0 {
 								for _, call := range invocResult.ExecutionTrace.Subcalls {
 									gas.Add(gas.Int, call.Msg.Value.Int)
 								}
 
 							}
-
 							gasMu.Lock()
 							totalGas.Add(totalGas.Int, gas.Int)
 							gasMu.Unlock()
@@ -149,18 +155,22 @@ var dcDailyGasCmd = &cli.Command{
 				if info.isMiner && info.isDC {
 					startHead, err := nodeAPI.ChainGetTipSetByHeight(ctx, abi.ChainEpoch(startEpoch), types.EmptyTSK)
 					if err != nil {
+						errChan <- err
 						return err
 					}
 					startSectorsCount, err := nodeAPI.StateMinerSectorCount(ctx, mid, startHead.Key())
 					if err != nil {
+						errChan <- err
 						return err
 					}
 					endHead, err := nodeAPI.ChainGetTipSetByHeight(ctx, abi.ChainEpoch(endEpoch), types.EmptyTSK)
 					if err != nil {
+						errChan <- err
 						return err
 					}
 					endSectorsCount, err := nodeAPI.StateMinerSectorCount(ctx, mid, endHead.Key())
 					if err != nil {
+						errChan <- err
 						return err
 					}
 					powerMu.Lock()
@@ -189,7 +199,6 @@ type Cache struct {
 }
 
 func (c *Cache) Get(key address.Address, nodeAPI v0api.FullNode, ctx context.Context) (*Info, error) {
-	//fmt.Println("this3")
 	c.mu.RLock()
 	val, ok := c.store[key]
 	c.mu.RUnlock()
@@ -203,28 +212,22 @@ func (c *Cache) Get(key address.Address, nodeAPI v0api.FullNode, ctx context.Con
 	}
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	//fmt.Println("this4")
 	return c.store[key], nil
 }
 
 func (c *Cache) Set(key address.Address, nodeAPI v0api.FullNode, ctx context.Context) error {
-	//fmt.Println("this1")
 	c.mu.Lock()
-	//fmt.Println("this11")
 	defer c.mu.Unlock()
 
 	c.store[key] = new(Info)
-	//fmt.Println("this111")
 	actor, err := nodeAPI.StateGetActor(ctx, key, types.EmptyTSK)
-	//fmt.Println("this1111")
 	if err != nil {
 		fmt.Println(err)
+
 		return err
 	}
 	isMiner := builtin.IsStorageMinerActor(actor.Code)
-	//fmt.Println(isMiner, "isMiner")
 	if isMiner {
-
 		minerPower, err := nodeAPI.StateMinerPower(ctx, key, types.EmptyTSK)
 		if err != nil {
 			return err
@@ -238,7 +241,20 @@ func (c *Cache) Set(key address.Address, nodeAPI v0api.FullNode, ctx context.Con
 	}
 
 	c.store[key].isMiner = isMiner
-	//fmt.Println("this2")
 	return nil
 
+}
+
+func timeToHeight(text string) (int64, int64, error) {
+	// 主网启动时间
+	bootstrapTime := int64(1598306400)
+	// 中国时区
+	loc, _ := time.LoadLocation("PRC")
+	stamp, err := time.ParseInLocation("2006-1-2", text, loc)
+	if err != nil {
+		return 0, 0, err
+	}
+	startEpoch := (stamp.Unix() - bootstrapTime) / 30
+	endEpoch := (stamp.Unix()-bootstrapTime)/30 + 2880
+	return startEpoch, endEpoch, nil
 }
