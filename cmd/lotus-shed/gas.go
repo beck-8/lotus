@@ -29,9 +29,10 @@ var dcDailyGasCmd = &cli.Command{
 	Usage: "calculate the dc gas of the whole network on the specified date",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name:  "date",
-			Value: "2020-08-25",
-			Usage: "specify date",
+			Name:     "date",
+			Value:    "2023-06-01",
+			Usage:    "specify date",
+			Required: true,
 		},
 		&cli.IntFlag{
 			Name:  "concurrency",
