@@ -6,13 +6,16 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
+	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/v0api"
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/urfave/cli/v2"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -35,8 +38,13 @@ var dcDailyGasCmd = &cli.Command{
 			Required: true,
 		},
 		&cli.IntFlag{
-			Name:  "concurrency",
-			Usage: "how many concurrent request calculations",
+			Name:  "parallel-block",
+			Usage: "parallel traversal blocks",
+			Value: 50,
+		},
+		&cli.IntFlag{
+			Name:  "parallel-msg",
+			Usage: "parallel traversal msgs",
 			Value: 50,
 		},
 	},
@@ -64,8 +72,11 @@ var dcDailyGasCmd = &cli.Command{
 		totalPower := abi.NewStoragePower(0)
 		var powerMu sync.Mutex
 
-		limit := make(chan int, cctx.Int("concurrency"))
+		limit := make(chan int, cctx.Int("parallel-block"))
 		wg := sync.WaitGroup{}
+
+		msgLimit := make(chan int, cctx.Int("parallel-msg"))
+		msgWg := sync.WaitGroup{}
 
 		errChan := make(chan error, 2)
 		go func() {
@@ -73,9 +84,19 @@ var dcDailyGasCmd = &cli.Command{
 				select {
 				case err := <-errChan:
 					fmt.Println(err)
+					fmt.Println(float64(totalGas.Uint64())/1e18, float64(totalPower.Uint64())/1024/1024/1024/1024)
 					os.Exit(1)
 				}
 			}
+		}()
+		// 处理中断信号
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+		go func() {
+			<-sigChan
+			fmt.Println(float64(totalGas.Uint64())/1e18, float64(totalPower.Uint64())/1024/1024/1024/1024)
+			os.Exit(0)
+
 		}()
 
 		for i := startEpoch; i <= endEpoch; i++ {
@@ -99,44 +120,55 @@ var dcDailyGasCmd = &cli.Command{
 					return err
 				}
 				for _, msg := range msgs {
-					fmt.Println("current msg:", msg.Cid.String())
-					invocResult, err := nodeAPI.StateReplay(ctx, head.Key(), msg.Cid)
-					if err != nil {
-						errChan <- err
-						return err
-					}
-					//跳过失败的消息，因为暂时不好处理
-					if invocResult.MsgRct.ExitCode != 0 {
-						switch invocResult.Msg.Method {
-						case 6, 7, 25, 26:
-						default:
-							continue
-						}
+					msgLimit <- 0
+					msgWg.Add(1)
+					go func(msg api.Message) error {
+						defer func() {
+							<-msgLimit
+							msgWg.Done()
+						}()
 
-					}
-					//屏蔽无关消息，否则cache会缓存全网的SP
-					switch invocResult.Msg.Method {
-					case 6, 7, 25, 26:
-						info, err := cache.Get(invocResult.Msg.To, nodeAPI, ctx)
+						fmt.Println("current msg:", msg.Cid.String())
+						invocResult, err := nodeAPI.StateReplay(ctx, head.Key(), msg.Cid)
 						if err != nil {
 							errChan <- err
 							return err
 						}
-						if info.isMiner && info.isDC {
-							gas := invocResult.GasCost.TotalCost
-							if len(invocResult.ExecutionTrace.Subcalls) > 0 {
-								for _, call := range invocResult.ExecutionTrace.Subcalls {
-									gas.Add(gas.Int, call.Msg.Value.Int)
-								}
-
+						//跳过失败的消息，因为暂时不好处理
+						if invocResult.MsgRct.ExitCode != 0 {
+							switch invocResult.Msg.Method {
+							case 6, 7, 25, 26:
+							default:
+								return nil
 							}
-							gasMu.Lock()
-							totalGas.Add(totalGas.Int, gas.Int)
-							gasMu.Unlock()
+
 						}
-					}
+						//屏蔽无关消息，否则cache会缓存全网的SP
+						switch invocResult.Msg.Method {
+						case 6, 7, 25, 26:
+							info, err := cache.Get(invocResult.Msg.To, nodeAPI, ctx)
+							if err != nil {
+								errChan <- err
+								return err
+							}
+							if info.isMiner && info.isDC {
+								gas := invocResult.GasCost.TotalCost
+								if len(invocResult.ExecutionTrace.Subcalls) > 0 {
+									for _, call := range invocResult.ExecutionTrace.Subcalls {
+										gas.Add(gas.Int, call.Msg.Value.Int)
+									}
+
+								}
+								gasMu.Lock()
+								totalGas.Add(totalGas.Int, gas.Int)
+								gasMu.Unlock()
+							}
+						}
+						return nil
+					}(msg)
 
 				}
+				msgWg.Wait()
 				return nil
 			}(i)
 
