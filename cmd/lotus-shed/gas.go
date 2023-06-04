@@ -58,6 +58,8 @@ var dcDailyGasCmd = &cli.Command{
 
 		ctx := lcli.ReqContext(cctx)
 
+		f099, _ := address.NewFromString("f099")
+
 		startEpoch, endEpoch, err := timeToHeight(cctx.String("date"))
 		if err != nil {
 			return err
@@ -102,7 +104,9 @@ var dcDailyGasCmd = &cli.Command{
 		for i := startEpoch; i <= endEpoch; i++ {
 
 			limit <- 0
-			fmt.Println("current height:", i)
+			gasMu.Lock()
+			fmt.Printf("current height: %v,totalGas: %s\n", i, totalGas)
+			gasMu.Unlock()
 			wg.Add(1)
 			go func(i int64) error {
 				defer func() {
@@ -155,7 +159,10 @@ var dcDailyGasCmd = &cli.Command{
 								gas := invocResult.GasCost.TotalCost
 								if len(invocResult.ExecutionTrace.Subcalls) > 0 {
 									for _, call := range invocResult.ExecutionTrace.Subcalls {
-										gas.Add(gas.Int, call.Msg.Value.Int)
+										if call.Msg.Method == 0 && call.Msg.To == f099 {
+											gas.Add(gas.Int, call.Msg.Value.Int)
+										}
+
 									}
 
 								}
@@ -207,7 +214,7 @@ var dcDailyGasCmd = &cli.Command{
 						return err
 					}
 					powerMu.Lock()
-					totalPower.Add(totalPower.Int, big.NewIntUnsigned(uint64(info.sectorSize)*(endSectorsCount.Active-startSectorsCount.Active)).Int)
+					totalPower.Add(totalPower.Int, big.NewIntUnsigned(uint64(info.sectorSize)*(endSectorsCount.Live-startSectorsCount.Live)).Int)
 					powerMu.Unlock()
 				}
 				return nil
