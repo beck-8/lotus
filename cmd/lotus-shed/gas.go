@@ -104,9 +104,7 @@ var dcDailyGasCmd = &cli.Command{
 		for i := startEpoch; i <= endEpoch; i++ {
 
 			limit <- 0
-			gasMu.Lock()
 			fmt.Printf("current height: %v,totalGas: %s\n", i, totalGas)
-			gasMu.Unlock()
 			wg.Add(1)
 			go func(i int64) error {
 				defer func() {
@@ -222,7 +220,7 @@ var dcDailyGasCmd = &cli.Command{
 
 		}
 		wg.Wait()
-		fmt.Println(float64(totalGas.Uint64())/1e18, float64(totalPower.Uint64())/1024/1024/1024/1024)
+		fmt.Println(types.BigDivFloat(totalGas, big.NewInt(1e18)), float64(totalPower.Uint64())/1024/1024/1024/1024)
 
 		return nil
 	},
