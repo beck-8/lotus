@@ -136,23 +136,28 @@ var dcDailyGasCmd = &cli.Command{
 						}()
 
 						fmt.Println("current msg:", msg.Cid.String())
-						invocResult, err := nodeAPI.StateReplay(ctx, head.Key(), msg.Cid)
-						if err != nil {
-							errChan <- err
-							return err
-						}
-						//跳过失败的消息，因为暂时不好处理
-						if invocResult.MsgRct.ExitCode != 0 {
-							switch invocResult.Msg.Method {
-							case 6, 7, 25, 26:
-							default:
-								return nil
-							}
 
+						var invocResult *api.InvocResult
+						replay := func() {
+							invocResult, err = nodeAPI.StateReplay(ctx, head.Key(), msg.Cid)
+							if err != nil {
+								errChan <- err
+							}
 						}
+
+						// //跳过失败的消息，因为暂时不好处理
+						// if invocResult.MsgRct.ExitCode != 0 {
+						// 	switch invocResult.Msg.Method {
+						// 	case 6, 7, 25, 26:
+						// 	default:
+						// 		return nil
+						// 	}
+						// }
+
 						//屏蔽无关消息，否则cache会缓存全网的SP
-						switch invocResult.Msg.Method {
+						switch msg.Message.Method {
 						case 6, 7, 25, 26:
+							replay()
 							info, err := cache.Get(invocResult.Msg.To, nodeAPI, ctx)
 							if err != nil {
 								errChan <- err
@@ -175,6 +180,7 @@ var dcDailyGasCmd = &cli.Command{
 							}
 
 						case 4:
+							replay()
 							if invocResult.Msg.To == f05 {
 								pubMu.Lock()
 								pubGas.Add(pubGas.Int, invocResult.GasCost.TotalCost.Int)
