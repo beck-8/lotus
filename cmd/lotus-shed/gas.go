@@ -3,6 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
+
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
@@ -12,11 +18,6 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/urfave/cli/v2"
-	"os"
-	"os/signal"
-	"sync"
-	"syscall"
-	"time"
 )
 
 var gasCmd = &cli.Command{
@@ -231,7 +232,7 @@ var dcDailyGasCmd = &cli.Command{
 
 		}
 		wg.Wait()
-		fmt.Println(types.BigDivFloat(totalGas, big.NewInt(1e18)), types.BigDivFloat(totalGas, big.NewInt(1e18)), float64(totalPower.Uint64())/1024/1024/1024/1024)
+		fmt.Println(types.BigDivFloat(totalGas, big.NewInt(1e18)), types.BigDivFloat(pubGas, big.NewInt(1e18)), float64(totalPower.Uint64())/1024/1024/1024/1024)
 
 		return nil
 	},
