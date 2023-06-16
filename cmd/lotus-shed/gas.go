@@ -59,6 +59,7 @@ var dcDailyGasCmd = &cli.Command{
 		ctx := lcli.ReqContext(cctx)
 
 		f099, _ := address.NewFromString("f099")
+		f05, _ := address.NewFromString("f05")
 
 		startEpoch, endEpoch, err := timeToHeight(cctx.String("date"))
 		if err != nil {
@@ -70,6 +71,9 @@ var dcDailyGasCmd = &cli.Command{
 
 		totalGas := abi.NewTokenAmount(0)
 		var gasMu sync.Mutex
+
+		pubGas := abi.NewTokenAmount(0)
+		var pubMu sync.Mutex
 
 		totalPower := abi.NewStoragePower(0)
 		var powerMu sync.Mutex
@@ -168,6 +172,13 @@ var dcDailyGasCmd = &cli.Command{
 								totalGas.Add(totalGas.Int, gas.Int)
 								gasMu.Unlock()
 							}
+
+						case 4:
+							if invocResult.Msg.To == f05 {
+								pubMu.Lock()
+								pubGas.Add(pubGas.Int, invocResult.GasCost.TotalCost.Int)
+								pubMu.Unlock()
+							}
 						}
 						return nil
 					}(msg)
@@ -220,7 +231,7 @@ var dcDailyGasCmd = &cli.Command{
 
 		}
 		wg.Wait()
-		fmt.Println(types.BigDivFloat(totalGas, big.NewInt(1e18)), float64(totalPower.Uint64())/1024/1024/1024/1024)
+		fmt.Println(types.BigDivFloat(totalGas, big.NewInt(1e18)), types.BigDivFloat(totalGas, big.NewInt(1e18)), float64(totalPower.Uint64())/1024/1024/1024/1024)
 
 		return nil
 	},
