@@ -25,6 +25,7 @@ var gasCmd = &cli.Command{
 	Usage: "gas sum",
 	Subcommands: []*cli.Command{
 		dcDailyGasCmd,
+		spDailyGasCmd,
 	},
 }
 
@@ -317,4 +318,223 @@ func timeToHeight(text string) (int64, int64, error) {
 	startEpoch := (stamp.Unix() - bootstrapTime) / 30
 	endEpoch := (stamp.Unix()-bootstrapTime)/30 + 2880
 	return startEpoch, endEpoch, nil
+}
+
+var spDailyGasCmd = &cli.Command{
+	Name:  "spgas",
+	Usage: "calculate the dc gas of the whole network on the specified date",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:     "date",
+			Value:    "2023-06-01",
+			Usage:    "specify date",
+			Required: true,
+		},
+		&cli.StringFlag{
+			Name:     "minerid",
+			Usage:    "specify minerid",
+			Required: true,
+		},
+		&cli.IntFlag{
+			Name:  "parallel",
+			Usage: "parallel num",
+			Value: 50,
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+
+		nodeAPI, acloser, err := lcli.GetFullNodeAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer acloser()
+
+		ctx := lcli.ReqContext(cctx)
+
+		parChan := make(chan struct{}, cctx.Int("parallel"))
+		errChan := make(chan error, 2)
+		go func() {
+			for err := range errChan {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+		}()
+
+		data := &struct {
+			date       string
+			startEpoch int64
+			endEpoch   int64
+			num        int
+			power      abi.SectorSize
+			pledge     abi.TokenAmount
+			worker     abi.TokenAmount
+			publish    abi.TokenAmount
+			control    abi.TokenAmount
+			err        abi.TokenAmount
+		}{power: abi.SectorSize(0), pledge: abi.NewTokenAmount(0), worker: abi.NewTokenAmount(0), publish: abi.NewTokenAmount(0), control: abi.NewTokenAmount(0), err: abi.NewTokenAmount(0)}
+		var dataLock sync.Mutex
+		var dataWg sync.WaitGroup
+
+		minerId, err := address.NewFromString(cctx.String("minerid"))
+		if err != nil {
+			return err
+		}
+		startEpoch, endEpoch, err := timeToHeight(cctx.String("date"))
+		if err != nil {
+			return err
+		}
+
+		data.date = cctx.String("date")
+		data.startEpoch = startEpoch
+		data.endEpoch = endEpoch
+
+		startTipSet, err := nodeAPI.ChainGetTipSetByHeight(ctx, abi.ChainEpoch(startEpoch), types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+		endTipSet, err := nodeAPI.ChainGetTipSetByHeight(ctx, abi.ChainEpoch(endEpoch), types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+
+		minerInfo, err := nodeAPI.StateMinerInfo(ctx, minerId, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+		// 计算高度之间的：扇区数量，质押币，存力
+		dataWg.Add(1)
+		go func() {
+			defer func() {
+				dataWg.Done()
+			}()
+			start, err := nodeAPI.StateMinerSectors(ctx, minerId, nil, startTipSet.Key())
+			if err != nil {
+				errChan <- err
+			}
+			end, err := nodeAPI.StateMinerSectors(ctx, minerId, nil, endTipSet.Key())
+			if err != nil {
+				errChan <- err
+			}
+			newCount := 0
+			for _, endOnChain := range end {
+				var isNew bool = true
+				for _, startOnChain := range start {
+					if endOnChain.SectorNumber == startOnChain.SectorNumber {
+						isNew = false
+						break
+					}
+				}
+				if isNew {
+					newCount += 1
+					data.pledge = big.Sum(data.pledge, endOnChain.InitialPledge)
+				}
+			}
+			data.num = newCount
+			data.power = abi.SectorSize(uint64(minerInfo.SectorSize) * uint64(newCount))
+		}()
+
+		sumGas := func(from address.Address, to address.Address, typ string) {
+			defer func() {
+				dataWg.Done()
+			}()
+			wMsgs, err := nodeAPI.StateListMessages(ctx, &api.MessageMatch{To: to, From: from}, endTipSet.Key(), abi.ChainEpoch(startEpoch))
+			if err != nil {
+				errChan <- err
+			}
+
+			TotalCost := abi.NewTokenAmount(0)
+			errCost := abi.NewTokenAmount(0)
+			var wlock sync.Mutex
+			var w sync.WaitGroup
+
+			for _, cid := range wMsgs {
+				w.Add(1)
+				parChan <- struct{}{}
+				go func() {
+					defer func() {
+						w.Done()
+						<-parChan
+					}()
+					invocResult, err := nodeAPI.StateReplay(ctx, types.EmptyTSK, cid)
+					if err != nil {
+						errChan <- err
+					}
+					wlock.Lock()
+					if invocResult.MsgRct.ExitCode == 0 {
+						TotalCost = big.Sum(TotalCost, invocResult.GasCost.MinerTip)
+						TotalCost = big.Sum(TotalCost, invocResult.GasCost.TotalCost)
+						for _, sub := range invocResult.ExecutionTrace.Subcalls {
+							if sub.Msg.Method == 0 {
+								TotalCost = big.Sum(TotalCost, sub.Msg.Value)
+							}
+
+						}
+					} else {
+						errCost = big.Sum(errCost, invocResult.GasCost.MinerTip)
+						errCost = big.Sum(errCost, invocResult.GasCost.TotalCost)
+						for _, sub := range invocResult.ExecutionTrace.Subcalls {
+							if sub.Msg.Method == 0 {
+								errCost = big.Sum(errCost, sub.Msg.Value)
+							}
+
+						}
+
+					}
+					wlock.Unlock()
+				}()
+
+			}
+			w.Wait()
+
+			dataLock.Lock()
+			if typ == "worker" {
+				data.worker = big.Sum(data.worker, TotalCost)
+			} else if typ == "control" {
+				data.control = big.Sum(data.control, TotalCost)
+			} else if typ == "publish" {
+				data.publish = big.Sum(data.publish, TotalCost)
+			}
+
+			data.err = big.Sum(data.err, errCost)
+			dataLock.Unlock()
+		}
+
+		f05, err := address.NewFromString("f05")
+		if err != nil {
+			return err
+		}
+		worker, err := nodeAPI.StateAccountKey(ctx, minerInfo.Worker, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+		dataWg.Add(2)
+		// 计算worker gas
+		go sumGas(worker, minerId, "worker")
+		// 计算publish gas
+		go sumGas(worker, f05, "publish")
+
+		for _, control := range minerInfo.ControlAddresses {
+			addr, err := nodeAPI.StateAccountKey(ctx, control, types.EmptyTSK)
+			if err != nil {
+				return err
+			}
+			dataWg.Add(1)
+			// 计算control gas
+			go sumGas(addr, minerId, "control")
+		}
+
+		dataWg.Wait()
+
+		fmt.Println(minerId)
+		fmt.Printf("Statistics time: %s 00:00:00(%v) ~ 23:59:30(%v)\n", data.date, data.startEpoch, data.endEpoch)
+		fmt.Printf("24h Add power: %v\n", data.power.ShortString())
+		fmt.Printf("Add sector: %v\n", data.num)
+		fmt.Printf("total pledge gas: %v\n", types.FIL(data.pledge).Short())
+		fmt.Printf("total worker gas: %v\n", types.FIL(data.worker).Short())
+		fmt.Printf("total publish gas: %v\n", types.FIL(data.publish).Short())
+		fmt.Printf("total control gas: %v\n", types.FIL(data.control).Short())
+		fmt.Printf("total error gas: %v\n", types.FIL(data.err).Short())
+
+		return nil
+	},
 }
