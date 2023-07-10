@@ -415,20 +415,20 @@ var spDailyGasCmd = &cli.Command{
 			if err != nil {
 				errChan <- err
 			}
+
 			newCount := 0
+			set := make(map[abi.SectorNumber]bool)
+			for _, startOnChain := range start {
+				set[startOnChain.SectorNumber] = true
+			}
+
 			for _, endOnChain := range end {
-				var isNew bool = true
-				for _, startOnChain := range start {
-					if endOnChain.SectorNumber == startOnChain.SectorNumber {
-						isNew = false
-						break
-					}
-				}
-				if isNew {
+				if !set[endOnChain.SectorNumber] {
 					newCount += 1
 					data.pledge = big.Sum(data.pledge, endOnChain.InitialPledge)
 				}
 			}
+
 			data.num = newCount
 			data.power = abi.SectorSize(uint64(minerInfo.SectorSize) * uint64(newCount))
 		}()
