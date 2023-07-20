@@ -17,6 +17,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
 	"github.com/filecoin-project/lotus/chain/types"
 	lcli "github.com/filecoin-project/lotus/cli"
+	"github.com/ipfs/go-cid"
 	"github.com/urfave/cli/v2"
 )
 
@@ -139,7 +140,7 @@ var dcDailyGasCmd = &cli.Command{
 						fmt.Println("current msg:", msg.Cid.String())
 
 						var invocResult *api.InvocResult
-						replay := func() {
+						replay := func(msg api.Message) {
 							invocResult, err = nodeAPI.StateReplay(ctx, head.Key(), msg.Cid)
 							if err != nil {
 								errChan <- err
@@ -158,7 +159,7 @@ var dcDailyGasCmd = &cli.Command{
 						//屏蔽无关消息，否则cache会缓存全网的SP
 						switch msg.Message.Method {
 						case 6, 7, 25, 26:
-							replay()
+							replay(msg)
 							info, err := cache.Get(invocResult.Msg.To, nodeAPI, ctx)
 							if err != nil {
 								errChan <- err
@@ -181,7 +182,7 @@ var dcDailyGasCmd = &cli.Command{
 							}
 
 						case 4:
-							replay()
+							replay(msg)
 							if invocResult.Msg.To == f05 {
 								pubMu.Lock()
 								pubGas.Add(pubGas.Int, invocResult.GasCost.TotalCost.Int)
@@ -198,7 +199,7 @@ var dcDailyGasCmd = &cli.Command{
 
 		}
 		wg.Wait()
-		for mid, _ := range cache.store {
+		for mid := range cache.store {
 
 			limit <- 0
 			wg.Add(1)
@@ -447,10 +448,10 @@ var spDailyGasCmd = &cli.Command{
 			var wlock sync.Mutex
 			var w sync.WaitGroup
 
-			for _, cid := range wMsgs {
+			for _, msgCid := range wMsgs {
 				w.Add(1)
 				parChan <- struct{}{}
-				go func() {
+				go func(cid cid.Cid) {
 					defer func() {
 						w.Done()
 						<-parChan
@@ -461,7 +462,6 @@ var spDailyGasCmd = &cli.Command{
 					}
 					wlock.Lock()
 					if invocResult.MsgRct.ExitCode == 0 {
-						TotalCost = big.Sum(TotalCost, invocResult.GasCost.MinerTip)
 						TotalCost = big.Sum(TotalCost, invocResult.GasCost.TotalCost)
 						for _, sub := range invocResult.ExecutionTrace.Subcalls {
 							if sub.Msg.Method == 0 {
@@ -470,7 +470,6 @@ var spDailyGasCmd = &cli.Command{
 
 						}
 					} else {
-						errCost = big.Sum(errCost, invocResult.GasCost.MinerTip)
 						errCost = big.Sum(errCost, invocResult.GasCost.TotalCost)
 						for _, sub := range invocResult.ExecutionTrace.Subcalls {
 							if sub.Msg.Method == 0 {
@@ -481,7 +480,7 @@ var spDailyGasCmd = &cli.Command{
 
 					}
 					wlock.Unlock()
-				}()
+				}(msgCid)
 
 			}
 			w.Wait()
