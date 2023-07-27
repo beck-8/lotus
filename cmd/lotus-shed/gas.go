@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	b "math/big"
 	"os"
 	"os/signal"
 	"sync"
@@ -533,6 +534,11 @@ var spDailyGasCmd = &cli.Command{
 		fmt.Printf("total publish gas: %v\n", types.FIL(data.publish).Short())
 		fmt.Printf("total control gas: %v\n", types.FIL(data.control).Short())
 		fmt.Printf("total error gas: %v\n", types.FIL(data.err).Short())
+
+		fil := func(fil abi.TokenAmount) string {
+			return new(b.Rat).SetFrac(fil.Int, b.NewInt(1e18)).FloatString(10)
+		}
+		fmt.Printf("%v,%v,%v,%v,%v,%v,%v,%v\n", data.date, float64(data.power)/(1<<40), data.num, fil(data.pledge), fil(data.worker), fil(data.publish), fil(data.control), fil(data.err))
 
 		return nil
 	},
