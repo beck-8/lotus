@@ -538,7 +538,7 @@ var spDailyGasCmd = &cli.Command{
 		fil := func(fil abi.TokenAmount) string {
 			return new(b.Rat).SetFrac(fil.Int, b.NewInt(1e18)).FloatString(10)
 		}
-		fmt.Printf("%v,%v,%v,%v,%v,%v,%v,%v\n", data.date, float64(data.power)/(1<<40), data.num, fil(data.pledge), fil(data.worker), fil(data.publish), fil(data.control), fil(data.err))
+		fmt.Printf("%v,%v,%v,%v,%v,%v,%v,%v,%v\n", data.date, minerId, float64(data.power)/(1<<40), data.num, fil(data.pledge), fil(data.worker), fil(data.publish), fil(data.control), fil(data.err))
 
 		return nil
 	},
