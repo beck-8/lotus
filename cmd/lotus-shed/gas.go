@@ -318,7 +318,7 @@ func timeToHeight(text string) (int64, int64, error) {
 		return 0, 0, err
 	}
 	startEpoch := (stamp.Unix() - bootstrapTime) / 30
-	endEpoch := (stamp.Unix()-bootstrapTime)/30 + 2880
+	endEpoch := (stamp.Unix()-bootstrapTime)/30 + 2879
 	return startEpoch, endEpoch, nil
 }
 
