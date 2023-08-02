@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -25,7 +26,7 @@ var checkCmd = &cli.Command{
 	Name:  "check",
 	Usage: "wdpost data check",
 	Description: `if storage is qiniu:
-	1. replace libfilcrypto.a
+	1. replace extern/filecoin-ffi/
 	2. use export QINIU=cfg.toml`,
 	Flags: []cli.Flag{
 		&cli.StringFlag{
@@ -133,7 +134,7 @@ var checkCmd = &cli.Command{
 					info.SectorNumber,
 				})
 				if err != nil {
-					fmt.Printf("%v,ERROR,%v\n", info.SectorNumber, fmt.Sprintf("generating fallback challenges: %s", err))
+					fmt.Printf("%v,ERROR,%v\n", info.SectorNumber, strings.ReplaceAll(fmt.Sprintf("generating fallback challenges: %s", err), "\n", ""))
 				}
 				psi := ffi.PrivateSectorInfo{
 					SectorInfo: proof.SectorInfo{
@@ -147,7 +148,7 @@ var checkCmd = &cli.Command{
 				}
 				_, err = ffi.GenerateSingleVanillaProof(psi, ch.Challenges[info.SectorNumber])
 				if err != nil {
-					fmt.Printf("%v,ERROR,%v\n", info.SectorNumber, fmt.Sprintf("generating VanillaProof: %s", err))
+					fmt.Printf("%v,ERROR,%v\n", info.SectorNumber, strings.ReplaceAll(fmt.Sprintf("generating VanillaProof: %s", err), "\n", ""))
 				} else {
 					atomic.AddInt32(&okCount, 1)
 					fmt.Printf("%v,SUCCESS\n", info.SectorNumber)
