@@ -82,6 +82,7 @@ func main() {
 		gasTraceCmd,
 		replayOfflineCmd,
 		gasCmd,
+		checkCmd,
 	}
 
 	app := &cli.App{
