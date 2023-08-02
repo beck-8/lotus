@@ -2,12 +2,13 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
 	"path"
 	"strconv"
+	"sync"
+	"sync/atomic"
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-address"
@@ -23,6 +24,9 @@ import (
 var checkCmd = &cli.Command{
 	Name:  "check",
 	Usage: "wdpost data check",
+	Description: `if storage is qiniu:
+	1. replace libfilcrypto.a
+	2. use export QINIU=cfg.toml`,
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:     "miner",
@@ -65,7 +69,8 @@ var checkCmd = &cli.Command{
 			return errPathNotFound
 		}
 
-		// throttle := make(chan struct{}, cctx.Int("parallel"))
+		throttle := make(chan struct{}, cctx.Int("parallel"))
+		var wg sync.WaitGroup
 		sectorsfile := cctx.String("sectorsfile")
 		var fileList map[uint64]struct{}
 		if cctx.IsSet("sectorsfile") {
@@ -103,7 +108,7 @@ var checkCmd = &cli.Command{
 		}
 
 		for _, info := range onChainInfo {
-			if info.Expiration > head.Height() {
+			if info.Expiration < head.Height() {
 				continue
 			}
 			if len(fileList) > 0 {
@@ -114,32 +119,44 @@ var checkCmd = &cli.Command{
 				toCheck = append(toCheck, info)
 			}
 		}
+
+		var okCount int32
 		for _, info := range toCheck {
-			ch, err := ffi.GeneratePoStFallbackSectorChallenges(minerInfo.WindowPoStProofType, abi.ActorID(mid), postRand, []abi.SectorNumber{
-				info.SectorNumber,
-			})
-			if err != nil {
-				fmt.Printf("%v,ERROR,%v\n", info.SectorNumber, fmt.Sprintf("generating fallback challenges: %s", err))
-				return err
-			}
-			d, _ := json.Marshal(ch)
-			fmt.Println(string(d))
-			psi := ffi.PrivateSectorInfo{
-				SectorInfo: proof.SectorInfo{
-					SealProof:    info.SealProof,
-					SectorNumber: info.SectorNumber,
-					SealedCID:    info.SealedCID,
-				},
-				CacheDirPath:     path.Join(cachePath, fmt.Sprintf("s-t0%v-%v", mid, info.SectorNumber)),
-				PoStProofType:    minerInfo.WindowPoStProofType,
-				SealedSectorPath: path.Join(sealedPath, fmt.Sprintf("s-t0%v-%v", mid, info.SectorNumber)),
-			}
-			data, err := ffi.GenerateSingleVanillaProof(psi, ch.Challenges[info.SectorNumber])
-			if err != nil {
-				return err
-			}
-			fmt.Printf("%v,SUCCESS,%v\n", info.SectorNumber, data)
+			throttle <- struct{}{}
+			wg.Add(1)
+			go func(info *miner.SectorOnChainInfo) {
+				defer func() {
+					<-throttle
+					wg.Done()
+				}()
+				ch, err := ffi.GeneratePoStFallbackSectorChallenges(minerInfo.WindowPoStProofType, abi.ActorID(mid), postRand, []abi.SectorNumber{
+					info.SectorNumber,
+				})
+				if err != nil {
+					fmt.Printf("%v,ERROR,%v\n", info.SectorNumber, fmt.Sprintf("generating fallback challenges: %s", err))
+				}
+				psi := ffi.PrivateSectorInfo{
+					SectorInfo: proof.SectorInfo{
+						SealProof:    info.SealProof,
+						SectorNumber: info.SectorNumber,
+						SealedCID:    info.SealedCID,
+					},
+					CacheDirPath:     path.Join(cachePath, fmt.Sprintf("s-t0%v-%v", mid, info.SectorNumber)),
+					PoStProofType:    minerInfo.WindowPoStProofType,
+					SealedSectorPath: path.Join(sealedPath, fmt.Sprintf("s-t0%v-%v", mid, info.SectorNumber)),
+				}
+				_, err = ffi.GenerateSingleVanillaProof(psi, ch.Challenges[info.SectorNumber])
+				if err != nil {
+					fmt.Printf("%v,ERROR,%v\n", info.SectorNumber, fmt.Sprintf("generating VanillaProof: %s", err))
+				} else {
+					atomic.AddInt32(&okCount, 1)
+					fmt.Printf("%v,SUCCESS\n", info.SectorNumber)
+				}
+
+			}(info)
 		}
+		wg.Wait()
+		fmt.Printf("total of %v sectors, %v successes, %v errors\n", len(toCheck), atomic.LoadInt32(&okCount), int32(len(toCheck))-atomic.LoadInt32(&okCount))
 		return nil
 	},
 }
