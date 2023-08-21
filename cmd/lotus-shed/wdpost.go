@@ -108,16 +108,43 @@ var checkCmd = &cli.Command{
 			return err
 		}
 
-		for _, info := range onChainInfo {
-			if info.Expiration < head.Height() {
-				continue
+		liveSectors := make(map[uint64]struct{})
+		for dead := 0; dead < 48; dead++ {
+			partitions, err := nodeAPI.StateMinerPartitions(ctx, minerAddr, uint64(dead), types.EmptyTSK)
+			if err != nil {
+				return xerrors.Errorf("getting partitions for deadline %d: %w", dead, err)
 			}
-			if len(fileList) > 0 {
-				if _, ok := fileList[uint64(info.SectorNumber)]; ok {
-					toCheck = append(toCheck, info)
+			for _, partition := range partitions {
+				count, err := partition.LiveSectors.Count()
+				if err != nil {
+					return err
 				}
-			} else {
-				toCheck = append(toCheck, info)
+				sectors, err := partition.LiveSectors.All(count)
+				if err != nil {
+					return err
+				}
+				for _, sector := range sectors {
+					liveSectors[uint64(sector)] = struct{}{}
+				}
+			}
+		}
+
+		var liveOnChainInfo []*miner.SectorOnChainInfo
+		for _, info := range onChainInfo {
+			if _, ok := liveSectors[uint64(info.SectorNumber)]; ok {
+				liveOnChainInfo = append(liveOnChainInfo, info)
+			}
+		}
+
+		if len(fileList) == 0 {
+			toCheck = append(toCheck, liveOnChainInfo...)
+		} else {
+			for _, info := range onChainInfo {
+				if info.Expiration >= head.Height() {
+					if _, ok := fileList[uint64(info.SectorNumber)]; ok {
+						toCheck = append(toCheck, info)
+					}
+				}
 			}
 		}
 
