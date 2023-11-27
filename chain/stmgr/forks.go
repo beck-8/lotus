@@ -4,11 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
+	"os"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-datastore"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
@@ -25,6 +29,9 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/vm"
 )
+
+// EnvDisablePreMigrations when set to '1' stops pre-migrations from running
+const EnvDisablePreMigrations = "LOTUS_DISABLE_PRE_MIGRATIONS"
 
 // MigrationCache can be used to cache information used by a migration. This is primarily useful to
 // "pre-compute" some migration state ahead of time, and make it accessible in the migration itself.
@@ -169,14 +176,28 @@ func (us UpgradeSchedule) GetNtwkVersion(e abi.ChainEpoch) (network.Version, err
 
 func (sm *StateManager) HandleStateForks(ctx context.Context, root cid.Cid, height abi.ChainEpoch, cb ExecMonitor, ts *types.TipSet) (cid.Cid, error) {
 	retCid := root
-	var err error
 	u := sm.stateMigrations[height]
 	if u != nil && u.upgrade != nil {
+		if height != build.UpgradeWatermelonFixHeight {
+			migCid, ok, err := u.migrationResultCache.Get(ctx, root)
+			if err == nil {
+				if ok {
+					log.Infow("CACHED migration", "height", height, "from", root, "to", migCid)
+					return migCid, nil
+				}
+			} else if !errors.Is(err, datastore.ErrNotFound) {
+				log.Errorw("failed to lookup previous migration result", "err", err)
+			} else {
+				log.Debug("no cached migration found, migrating from scratch")
+			}
+		}
+
 		startTime := time.Now()
 		log.Warnw("STARTING migration", "height", height, "from", root)
 		// Yes, we clone the cache, even for the final upgrade epoch. Why? Reverts. We may
 		// have to migrate multiple times.
 		tmpCache := u.cache.Clone()
+		var err error
 		retCid, err = u.upgrade(ctx, sm, tmpCache, cb, root, height, ts)
 		if err != nil {
 			log.Errorw("FAILED migration", "height", height, "from", root, "error", err)
@@ -192,6 +213,11 @@ func (sm *StateManager) HandleStateForks(ctx context.Context, root cid.Cid, heig
 			"to", retCid,
 			"duration", time.Since(startTime),
 		)
+
+		// Only set if migration ran, we do not want a root => root mapping
+		if err := u.migrationResultCache.Store(ctx, root, retCid); err != nil {
+			log.Errorw("failed to store migration result", "err", err)
+		}
 	}
 
 	return retCid, nil
@@ -217,6 +243,11 @@ func (sm *StateManager) hasExpensiveFork(height abi.ChainEpoch) bool {
 func runPreMigration(ctx context.Context, sm *StateManager, fn PreMigrationFunc, cache *nv16.MemMigrationCache, ts *types.TipSet) {
 	height := ts.Height()
 	parent := ts.ParentState()
+
+	if disabled := os.Getenv(EnvDisablePreMigrations); strings.TrimSpace(disabled) == "1" {
+		log.Warnw("SKIPPING pre-migration", "height", height)
+		return
+	}
 
 	startTime := time.Now()
 
@@ -347,12 +378,11 @@ func DoTransfer(tree types.StateTree, from, to address.Address, amt abi.TokenAmo
 		// record the transfer in execution traces
 
 		cb(types.ExecutionTrace{
-			Msg:        MakeFakeMsg(from, to, amt, 0),
-			MsgRct:     MakeFakeRct(),
-			Error:      "",
-			Duration:   0,
-			GasCharges: nil,
-			Subcalls:   nil,
+			Msg: types.MessageTrace{
+				From:  from,
+				To:    to,
+				Value: amt,
+			},
 		})
 	}
 

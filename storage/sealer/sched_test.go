@@ -288,25 +288,30 @@ func TestSched(t *testing.T) {
 					ProofType: spt,
 				}
 
-				err := sched.Schedule(ctx, sectorRef, taskType, sel, func(ctx context.Context, w Worker) error {
-					wi, err := w.Info(ctx)
-					require.NoError(t, err)
+				prep := PrepareAction{
+					Action: func(ctx context.Context, w Worker) error {
+						wi, err := w.Info(ctx)
+						require.NoError(t, err)
 
-					require.Equal(t, expectWorker, wi.Hostname)
+						require.Equal(t, expectWorker, wi.Hostname)
 
-					log.Info("IN  ", taskName)
+						log.Info("IN  ", taskName)
 
-					for {
-						_, ok := <-done
-						if !ok {
-							break
+						for {
+							_, ok := <-done
+							if !ok {
+								break
+							}
 						}
-					}
 
-					log.Info("OUT ", taskName)
+						log.Info("OUT ", taskName)
 
-					return nil
-				}, noopAction)
+						return nil
+					},
+					PrepType: taskType,
+				}
+
+				err := sched.Schedule(ctx, sectorRef, taskType, sel, prep, noopAction)
 				if err != context.Canceled {
 					require.NoError(t, err, fmt.Sprint(l, l2))
 				}
@@ -639,8 +644,8 @@ func BenchmarkTrySched(b *testing.B) {
 						Resources: decentWorkerResources,
 					},
 					Enabled:   true,
-					preparing: NewActiveResources(),
-					active:    NewActiveResources(),
+					preparing: NewActiveResources(newTaskCounter()),
+					active:    NewActiveResources(newTaskCounter()),
 				}
 
 				for i := 0; i < windows; i++ {
@@ -685,7 +690,7 @@ func TestWindowCompact(t *testing.T) {
 
 			for _, windowTasks := range start {
 				window := &SchedWindow{
-					Allocated: *NewActiveResources(),
+					Allocated: *NewActiveResources(newTaskCounter()),
 				}
 
 				for _, task := range windowTasks {
@@ -693,7 +698,7 @@ func TestWindowCompact(t *testing.T) {
 						TaskType: task,
 						Sector:   storiface.SectorRef{ProofType: spt},
 					})
-					window.Allocated.Add(task.SealTask(spt), wh.Info.Resources, storiface.ResourceTable[task][spt])
+					window.Allocated.Add(uuid.UUID{}, task.SealTask(spt), wh.Info.Resources, storiface.ResourceTable[task][spt])
 				}
 
 				wh.activeWindows = append(wh.activeWindows, window)
@@ -708,11 +713,11 @@ func TestWindowCompact(t *testing.T) {
 			require.Equal(t, len(start)-len(expect), -sw.windowsRequested)
 
 			for wi, tasks := range expect {
-				expectRes := NewActiveResources()
+				expectRes := NewActiveResources(newTaskCounter())
 
 				for ti, task := range tasks {
 					require.Equal(t, task, wh.activeWindows[wi].Todo[ti].TaskType, "%d, %d", wi, ti)
-					expectRes.Add(task.SealTask(spt), wh.Info.Resources, storiface.ResourceTable[task][spt])
+					expectRes.Add(uuid.UUID{}, task.SealTask(spt), wh.Info.Resources, storiface.ResourceTable[task][spt])
 				}
 
 				require.Equal(t, expectRes.cpuUse, wh.activeWindows[wi].Allocated.cpuUse, "%d", wi)

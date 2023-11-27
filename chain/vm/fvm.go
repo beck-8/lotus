@@ -33,6 +33,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/aerrors"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
+	"github.com/filecoin-project/lotus/chain/rand"
 	"github.com/filecoin-project/lotus/chain/state"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/lib/sigs"
@@ -43,63 +44,12 @@ var _ Interface = (*FVM)(nil)
 var _ ffi_cgo.Externs = (*FvmExtern)(nil)
 
 type FvmExtern struct {
-	Rand
+	rand.Rand
 	blockstore.Blockstore
 	epoch   abi.ChainEpoch
 	lbState LookbackStateGetter
 	tsGet   TipSetGetter
 	base    cid.Cid
-}
-
-type FvmGasCharge struct {
-	Name       string
-	TotalGas   int64
-	ComputeGas int64
-	StorageGas int64
-}
-
-// This may eventually become identical to ExecutionTrace, but we can make incremental progress towards that
-type FvmExecutionTrace struct {
-	Msg        *types.Message
-	MsgRct     *types.MessageReceipt
-	Error      string
-	GasCharges []FvmGasCharge      `cborgen:"maxlen=1000000000"`
-	Subcalls   []FvmExecutionTrace `cborgen:"maxlen=1000000000"`
-}
-
-func (t *FvmExecutionTrace) ToExecutionTrace() types.ExecutionTrace {
-	if t == nil {
-		return types.ExecutionTrace{}
-	}
-
-	ret := types.ExecutionTrace{
-		Msg:      t.Msg,
-		MsgRct:   t.MsgRct,
-		Error:    t.Error,
-		Subcalls: nil, // Should be nil when there are no subcalls for backwards compatibility
-	}
-
-	if len(t.GasCharges) > 0 {
-		ret.GasCharges = make([]*types.GasTrace, len(t.GasCharges))
-		for i, v := range t.GasCharges {
-			ret.GasCharges[i] = &types.GasTrace{
-				Name:       v.Name,
-				TotalGas:   v.TotalGas,
-				ComputeGas: v.ComputeGas,
-				StorageGas: v.StorageGas,
-			}
-		}
-	}
-
-	if len(t.Subcalls) > 0 {
-		ret.Subcalls = make([]types.ExecutionTrace, len(t.Subcalls))
-
-		for i, v := range t.Subcalls {
-			ret.Subcalls[i] = v.ToExecutionTrace()
-		}
-	}
-
-	return ret
 }
 
 func (x *FvmExtern) TipsetCid(ctx context.Context, epoch abi.ChainEpoch) (cid.Cid, error) {
@@ -142,6 +92,15 @@ func (x *FvmExtern) VerifyConsensusFault(ctx context.Context, a, b, extra []byte
 		log.Info("invalid consensus fault: submitted blocks are the same")
 		return ret, totalGas
 	}
+
+	// workaround chain halt
+	if build.IsNearUpgrade(blockA.Height, build.UpgradeWatermelonFixHeight) {
+		return ret, totalGas
+	}
+	if build.IsNearUpgrade(blockB.Height, build.UpgradeWatermelonFixHeight) {
+		return ret, totalGas
+	}
+
 	// (1) check conditions necessary to any consensus fault
 
 	// were blocks mined by same miner?
@@ -487,19 +446,9 @@ func (vm *FVM) ApplyMessage(ctx context.Context, cmsg types.ChainMsg) (*ApplyRet
 
 	var et types.ExecutionTrace
 	if len(ret.ExecTraceBytes) != 0 {
-		var fvmEt FvmExecutionTrace
-		if err = fvmEt.UnmarshalCBOR(bytes.NewReader(ret.ExecTraceBytes)); err != nil {
+		if err = et.UnmarshalCBOR(bytes.NewReader(ret.ExecTraceBytes)); err != nil {
 			return nil, xerrors.Errorf("failed to unmarshal exectrace: %w", err)
 		}
-		et = fvmEt.ToExecutionTrace()
-	}
-
-	// Set the top-level exectrace info from the message and receipt for backwards compatibility
-	et.Msg = vmMsg
-	et.MsgRct = &receipt
-	et.Duration = duration
-	if aerr != nil {
-		et.Error = aerr.Error()
 	}
 
 	applyRet := &ApplyRet{
@@ -562,17 +511,8 @@ func (vm *FVM) ApplyImplicitMessage(ctx context.Context, cmsg *types.Message) (*
 
 	var et types.ExecutionTrace
 	if len(ret.ExecTraceBytes) != 0 {
-		var fvmEt FvmExecutionTrace
-		if err = fvmEt.UnmarshalCBOR(bytes.NewReader(ret.ExecTraceBytes)); err != nil {
+		if err = et.UnmarshalCBOR(bytes.NewReader(ret.ExecTraceBytes)); err != nil {
 			return nil, xerrors.Errorf("failed to unmarshal exectrace: %w", err)
-		}
-		et = fvmEt.ToExecutionTrace()
-	} else {
-		et.Msg = vmMsg
-		et.MsgRct = &receipt
-		et.Duration = duration
-		if aerr != nil {
-			et.Error = aerr.Error()
 		}
 	}
 
@@ -588,10 +528,6 @@ func (vm *FVM) ApplyImplicitMessage(ctx context.Context, cmsg *types.Message) (*
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode events returned by the FVM: %w", err)
 		}
-	}
-
-	if ret.ExitCode != 0 {
-		return applyRet, fmt.Errorf("implicit message failed with exit code: %d and error: %w", ret.ExitCode, applyRet.ActorErr)
 	}
 
 	return applyRet, nil

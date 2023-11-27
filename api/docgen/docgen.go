@@ -14,9 +14,9 @@ import (
 	"unicode"
 
 	"github.com/google/uuid"
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-graphsync"
-	blocks "github.com/ipfs/go-libipfs/blocks"
 	textselector "github.com/ipld/go-ipld-selector-text-lite"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/metrics"
@@ -27,7 +27,7 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-bitfield"
-	datatransfer "github.com/filecoin-project/go-data-transfer"
+	datatransfer "github.com/filecoin-project/go-data-transfer/v2"
 	"github.com/filecoin-project/go-fil-markets/filestore"
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
 	"github.com/filecoin-project/go-jsonrpc/auth"
@@ -86,6 +86,7 @@ func init() {
 	}
 
 	ExampleValues[reflect.TypeOf(addr)] = addr
+	ExampleValues[reflect.TypeOf(&addr)] = &addr
 
 	pid, err := peer.Decode("12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf")
 	if err != nil {
@@ -152,8 +153,8 @@ func init() {
 	addExample(map[string]int{"name": 42})
 	addExample(map[string]time.Time{"name": time.Unix(1615243938, 0).UTC()})
 	addExample(&types.ExecutionTrace{
-		Msg:    ExampleValue("init", reflect.TypeOf(&types.Message{}), nil).(*types.Message),
-		MsgRct: ExampleValue("init", reflect.TypeOf(&types.MessageReceipt{}), nil).(*types.MessageReceipt),
+		Msg:    ExampleValue("init", reflect.TypeOf(types.MessageTrace{}), nil).(types.MessageTrace),
+		MsgRct: ExampleValue("init", reflect.TypeOf(types.ReturnTrace{}), nil).(types.ReturnTrace),
 	})
 	addExample(map[string]types.Actor{
 		"t01236": ExampleValue("init", reflect.TypeOf(types.Actor{}), nil).(types.Actor),
@@ -479,6 +480,9 @@ func ExampleValue(method string, t, parent reflect.Type) interface{} {
 			es := exampleStruct(method, t.Elem(), t)
 			ExampleValues[t] = es
 			return es
+		} else if t.Elem().Kind() == reflect.String {
+			str := "string value"
+			return &str
 		}
 	case reflect.Interface:
 		return struct{}{}
