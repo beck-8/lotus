@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	nilrouting "github.com/ipfs/go-ipfs-routing/none"
+	nilrouting "github.com/ipfs/boxo/routing/none"
 	"github.com/libp2p/go-libp2p"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	record "github.com/libp2p/go-libp2p-record"
@@ -67,6 +67,13 @@ func Host(mctx helpers.MetricsCtx, lc fx.Lifecycle, params P2PHostIn) (RawHost, 
 	})
 
 	return h, nil
+}
+
+func UserAgentOption(agent string) func() (opts Libp2pOpts, err error) {
+	return func() (opts Libp2pOpts, err error) {
+		opts.Opts = append(opts.Opts, libp2p.UserAgent(agent))
+		return
+	}
 }
 
 func MockHost(mn mocknet.Mocknet, id peer.ID, ps peerstore.Peerstore) (RawHost, error) {

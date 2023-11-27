@@ -43,9 +43,11 @@ func (t *HelloMessage) MarshalCBOR(w io.Writer) error {
 		return err
 	}
 	for _, v := range t.HeaviestTipSet {
-		if err := cbg.WriteCid(w, v); err != nil {
-			return xerrors.Errorf("failed writing cid field t.HeaviestTipSet: %w", err)
+
+		if err := cbg.WriteCid(cw, v); err != nil {
+			return xerrors.Errorf("failed to write cid field v: %w", err)
 		}
+
 	}
 
 	// t.HeaviestTipSetHeight (abi.ChainEpoch) (int64)
@@ -116,12 +118,25 @@ func (t *HelloMessage) UnmarshalCBOR(r io.Reader) (err error) {
 	}
 
 	for i := 0; i < int(extra); i++ {
+		{
+			var maj byte
+			var extra uint64
+			var err error
+			_ = maj
+			_ = extra
+			_ = err
 
-		c, err := cbg.ReadCid(cr)
-		if err != nil {
-			return xerrors.Errorf("reading cid field t.HeaviestTipSet failed: %w", err)
+			{
+
+				c, err := cbg.ReadCid(cr)
+				if err != nil {
+					return xerrors.Errorf("failed to read cid field t.HeaviestTipSet[i]: %w", err)
+				}
+
+				t.HeaviestTipSet[i] = c
+
+			}
 		}
-		t.HeaviestTipSet[i] = c
 	}
 
 	// t.HeaviestTipSetHeight (abi.ChainEpoch) (int64)
@@ -140,7 +155,7 @@ func (t *HelloMessage) UnmarshalCBOR(r io.Reader) (err error) {
 		case cbg.MajNegativeInt:
 			extraI = int64(extra)
 			if extraI < 0 {
-				return fmt.Errorf("int64 negative oveflow")
+				return fmt.Errorf("int64 negative overflow")
 			}
 			extraI = -1 - extraI
 		default:
@@ -250,7 +265,7 @@ func (t *LatencyMessage) UnmarshalCBOR(r io.Reader) (err error) {
 		case cbg.MajNegativeInt:
 			extraI = int64(extra)
 			if extraI < 0 {
-				return fmt.Errorf("int64 negative oveflow")
+				return fmt.Errorf("int64 negative overflow")
 			}
 			extraI = -1 - extraI
 		default:
@@ -275,7 +290,7 @@ func (t *LatencyMessage) UnmarshalCBOR(r io.Reader) (err error) {
 		case cbg.MajNegativeInt:
 			extraI = int64(extra)
 			if extraI < 0 {
-				return fmt.Errorf("int64 negative oveflow")
+				return fmt.Errorf("int64 negative overflow")
 			}
 			extraI = -1 - extraI
 		default:

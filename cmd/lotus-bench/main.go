@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math/big"
 	"math/rand"
 	"os"
@@ -99,14 +98,16 @@ func main() {
 	log.Info("Starting lotus-bench")
 
 	app := &cli.App{
-		Name:    "lotus-bench",
-		Usage:   "Benchmark performance of lotus on your hardware",
-		Version: build.UserVersion(),
+		Name:                      "lotus-bench",
+		Usage:                     "Benchmark performance of lotus on your hardware",
+		Version:                   build.UserVersion(),
+		DisableSliceFlagSeparator: true,
 		Commands: []*cli.Command{
 			proveCmd,
 			sealBenchCmd,
 			simpleCmd,
 			importBenchCmd,
+			rpcCmd,
 		},
 	}
 
@@ -197,7 +198,7 @@ var sealBenchCmd = &cli.Command{
 				return xerrors.Errorf("creating sectorbuilder dir: %w", err)
 			}
 
-			tsdir, err := ioutil.TempDir(sdir, "bench")
+			tsdir, err := os.MkdirTemp(sdir, "bench")
 			if err != nil {
 				return err
 			}
@@ -287,7 +288,7 @@ var sealBenchCmd = &cli.Command{
 			// sectorbuilder directory... we need a better way to handle
 			// this in other cases
 
-			fdata, err := ioutil.ReadFile(filepath.Join(sbdir, "pre-seal-"+maddr.String()+".json"))
+			fdata, err := os.ReadFile(filepath.Join(sbdir, "pre-seal-"+maddr.String()+".json"))
 			if err != nil {
 				return err
 			}
@@ -333,7 +334,7 @@ var sealBenchCmd = &cli.Command{
 
 		if !skipc2 {
 			log.Info("generating winning post candidates")
-			wipt, err := spt(sectorSize).RegisteredWinningPoStProof()
+			wipt, err := spt(sectorSize, false).RegisteredWinningPoStProof()
 			if err != nil {
 				return err
 			}
@@ -551,7 +552,7 @@ func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par
 				Miner:  mid,
 				Number: i,
 			},
-			ProofType: spt(sectorSize),
+			ProofType: spt(sectorSize, false),
 		}
 
 		start := time.Now()
@@ -583,7 +584,7 @@ func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par
 							Miner:  mid,
 							Number: i,
 						},
-						ProofType: spt(sectorSize),
+						ProofType: spt(sectorSize, false),
 					}
 
 					start := time.Now()
@@ -647,7 +648,7 @@ func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par
 							return err
 						}
 
-						if err := ioutil.WriteFile(saveC2inp, b, 0664); err != nil {
+						if err := os.WriteFile(saveC2inp, b, 0664); err != nil {
 							log.Warnf("%+v", err)
 						}
 					}
@@ -761,7 +762,7 @@ var proveCmd = &cli.Command{
 			return xerrors.Errorf("Usage: lotus-bench prove [input.json]")
 		}
 
-		inb, err := ioutil.ReadFile(c.Args().First())
+		inb, err := os.ReadFile(c.Args().First())
 		if err != nil {
 			return xerrors.Errorf("reading input file: %w", err)
 		}
@@ -794,7 +795,7 @@ var proveCmd = &cli.Command{
 				Miner:  abi.ActorID(mid),
 				Number: abi.SectorNumber(c2in.SectorNum),
 			},
-			ProofType: spt(abi.SectorSize(c2in.SectorSize)),
+			ProofType: spt(abi.SectorSize(c2in.SectorSize), false),
 		}
 
 		fmt.Printf("----\nstart proof computation\n")
@@ -825,8 +826,8 @@ func bps(sectorSize abi.SectorSize, sectorNum int, d time.Duration) string {
 	return types.SizeStr(types.BigInt{Int: bps}) + "/s"
 }
 
-func spt(ssize abi.SectorSize) abi.RegisteredSealProof {
-	spt, err := miner.SealProofTypeFromSectorSize(ssize, build.TestNetworkVersion)
+func spt(ssize abi.SectorSize, synth bool) abi.RegisteredSealProof {
+	spt, err := miner.SealProofTypeFromSectorSize(ssize, build.TestNetworkVersion, synth)
 	if err != nil {
 		panic(err)
 	}

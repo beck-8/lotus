@@ -25,8 +25,8 @@ import (
 	"github.com/filecoin-project/dagstore/shard"
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-bitfield"
-	datatransfer "github.com/filecoin-project/go-data-transfer"
-	gst "github.com/filecoin-project/go-data-transfer/transport/graphsync"
+	datatransfer "github.com/filecoin-project/go-data-transfer/v2"
+	gst "github.com/filecoin-project/go-data-transfer/v2/transport/graphsync"
 	"github.com/filecoin-project/go-fil-markets/piecestore"
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
@@ -35,7 +35,6 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
 	builtintypes "github.com/filecoin-project/go-state-types/builtin"
-	minertypes "github.com/filecoin-project/go-state-types/builtin/v9/miner"
 	"github.com/filecoin-project/go-state-types/network"
 
 	"github.com/filecoin-project/lotus/api"
@@ -43,6 +42,7 @@ import (
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
+	lminer "github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/gen"
 	"github.com/filecoin-project/lotus/chain/types"
 	mktsdagstore "github.com/filecoin-project/lotus/markets/dagstore"
@@ -254,6 +254,33 @@ func (sm *StorageMinerAPI) SectorsUnsealPiece(ctx context.Context, sector storif
 	return sm.StorageMgr.SectorsUnsealPiece(ctx, sector, offset, size, randomness, commd)
 }
 
+func (sm *StorageMinerAPI) SectorUnseal(ctx context.Context, sectorNum abi.SectorNumber) error {
+
+	status, err := sm.Miner.SectorsStatus(ctx, sectorNum, false)
+	if err != nil {
+		return err
+	}
+
+	minerAddr, err := sm.ActorAddress(ctx)
+	if err != nil {
+		return err
+	}
+	minerID, err := address.IDFromAddress(minerAddr)
+	if err != nil {
+		return err
+	}
+
+	sector := storiface.SectorRef{
+		ID: abi.SectorID{
+			Miner:  abi.ActorID(minerID),
+			Number: sectorNum,
+		},
+		ProofType: status.SealProof,
+	}
+
+	return sm.StorageMgr.SectorsUnsealPiece(ctx, sector, storiface.UnpaddedByteIndex(0), abi.UnpaddedPieceSize(0), status.Ticket.Value, status.CommD)
+}
+
 // List all staged sectors
 func (sm *StorageMinerAPI) SectorsList(context.Context) ([]abi.SectorNumber, error) {
 	sectors, err := sm.Miner.ListSectors()
@@ -461,7 +488,7 @@ func (sm *StorageMinerAPI) SectorReceive(ctx context.Context, meta api.RemoteSec
 	return err
 }
 
-func (sm *StorageMinerAPI) ComputeWindowPoSt(ctx context.Context, dlIdx uint64, tsk types.TipSetKey) ([]minertypes.SubmitWindowedPoStParams, error) {
+func (sm *StorageMinerAPI) ComputeWindowPoSt(ctx context.Context, dlIdx uint64, tsk types.TipSetKey) ([]lminer.SubmitWindowedPoStParams, error) {
 	var ts *types.TipSet
 	var err error
 	if tsk == types.EmptyTSK {
@@ -539,20 +566,8 @@ func (sm *StorageMinerAPI) MarketListDeals(ctx context.Context) ([]*api.MarketDe
 	return sm.listDeals(ctx)
 }
 
-func (sm *StorageMinerAPI) MarketListRetrievalDeals(ctx context.Context) ([]retrievalmarket.ProviderDealState, error) {
-	var out []retrievalmarket.ProviderDealState
-	deals := sm.RetrievalProvider.ListDeals()
-
-	for _, deal := range deals {
-		if deal.ChannelID != nil {
-			if deal.ChannelID.Initiator == "" || deal.ChannelID.Responder == "" {
-				deal.ChannelID = nil // don't try to push unparsable peer IDs over jsonrpc
-			}
-		}
-		out = append(out, deal)
-	}
-
-	return out, nil
+func (sm *StorageMinerAPI) MarketListRetrievalDeals(ctx context.Context) ([]struct{}, error) {
+	return []struct{}{}, nil
 }
 
 func (sm *StorageMinerAPI) MarketGetDealUpdates(ctx context.Context) (<-chan storagemarket.MinerDeal, error) {
@@ -1380,7 +1395,7 @@ func (sm *StorageMinerAPI) withdrawBalance(ctx context.Context, amount abi.Token
 		amount = available
 	}
 
-	params, err := actors.SerializeParams(&minertypes.WithdrawBalanceParams{
+	params, err := actors.SerializeParams(&lminer.WithdrawBalanceParams{
 		AmountRequested: amount,
 	})
 	if err != nil {

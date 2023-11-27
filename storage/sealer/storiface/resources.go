@@ -342,7 +342,9 @@ var ResourceTable = map[sealtasks.TaskType]map[abi.RegisteredSealProof]Resources
 			MaxMemory: 8 << 30,
 			MinMemory: 8 << 30,
 
-			MaxParallelism: 1,
+			MaxParallelism:    1,
+			MaxParallelismGPU: 6,
+			GPUUtilization:    1.0,
 
 			BaseMinMemory: 1 << 30,
 		},
@@ -350,7 +352,9 @@ var ResourceTable = map[sealtasks.TaskType]map[abi.RegisteredSealProof]Resources
 			MaxMemory: 4 << 30,
 			MinMemory: 4 << 30,
 
-			MaxParallelism: 1,
+			MaxParallelism:    1,
+			MaxParallelismGPU: 6,
+			GPUUtilization:    1.0,
 
 			BaseMinMemory: 1 << 30,
 		},
@@ -359,6 +363,7 @@ var ResourceTable = map[sealtasks.TaskType]map[abi.RegisteredSealProof]Resources
 			MinMemory: 1 << 30,
 
 			MaxParallelism: 1,
+			GPUUtilization: 1.0,
 
 			BaseMinMemory: 1 << 30,
 		},
@@ -367,6 +372,7 @@ var ResourceTable = map[sealtasks.TaskType]map[abi.RegisteredSealProof]Resources
 			MinMemory: 2 << 10,
 
 			MaxParallelism: 1,
+			GPUUtilization: 1.0,
 
 			BaseMinMemory: 2 << 10,
 		},
@@ -375,6 +381,7 @@ var ResourceTable = map[sealtasks.TaskType]map[abi.RegisteredSealProof]Resources
 			MinMemory: 8 << 20,
 
 			MaxParallelism: 1,
+			GPUUtilization: 1.0,
 
 			BaseMinMemory: 8 << 20,
 		},
@@ -580,13 +587,18 @@ func init() {
 		ResourceTable[sealtasks.TTDataCid][proof] = ResourceTable[sealtasks.TTAddPiece][abi.RegisteredSealProof_StackedDrg32GiBV1]
 	}
 
-	// V1_1 is the same as V1
+	// V1_1 and SynthethicpoRep is the same as V1
 	for _, m := range ResourceTable {
 		m[abi.RegisteredSealProof_StackedDrg2KiBV1_1] = m[abi.RegisteredSealProof_StackedDrg2KiBV1]
+		m[abi.RegisteredSealProof_StackedDrg2KiBV1_1_Feat_SyntheticPoRep] = m[abi.RegisteredSealProof_StackedDrg2KiBV1]
 		m[abi.RegisteredSealProof_StackedDrg8MiBV1_1] = m[abi.RegisteredSealProof_StackedDrg8MiBV1]
+		m[abi.RegisteredSealProof_StackedDrg8MiBV1_1_Feat_SyntheticPoRep] = m[abi.RegisteredSealProof_StackedDrg8MiBV1]
 		m[abi.RegisteredSealProof_StackedDrg512MiBV1_1] = m[abi.RegisteredSealProof_StackedDrg512MiBV1]
+		m[abi.RegisteredSealProof_StackedDrg512MiBV1_1_Feat_SyntheticPoRep] = m[abi.RegisteredSealProof_StackedDrg512MiBV1]
 		m[abi.RegisteredSealProof_StackedDrg32GiBV1_1] = m[abi.RegisteredSealProof_StackedDrg32GiBV1]
+		m[abi.RegisteredSealProof_StackedDrg32GiBV1_1_Feat_SyntheticPoRep] = m[abi.RegisteredSealProof_StackedDrg32GiBV1]
 		m[abi.RegisteredSealProof_StackedDrg64GiBV1_1] = m[abi.RegisteredSealProof_StackedDrg64GiBV1]
+		m[abi.RegisteredSealProof_StackedDrg64GiBV1_1_Feat_SyntheticPoRep] = m[abi.RegisteredSealProof_StackedDrg64GiBV1]
 	}
 }
 

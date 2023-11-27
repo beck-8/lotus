@@ -38,7 +38,7 @@
   #
   # type: []string
   # env var: LOTUS_LIBP2P_LISTENADDRESSES
-  #ListenAddresses = ["/ip4/0.0.0.0/tcp/0", "/ip6/::/tcp/0"]
+  #ListenAddresses = ["/ip4/0.0.0.0/tcp/0", "/ip6/::/tcp/0", "/ip4/0.0.0.0/udp/0/quic-v1", "/ip6/::/udp/0/quic-v1", "/ip4/0.0.0.0/udp/0/quic-v1/webtransport", "/ip6/::/udp/0/quic-v1/webtransport"]
 
   # Addresses to explicitally announce to other peers. If not specified,
   # all interface addresses are announced
@@ -191,7 +191,7 @@
 [Chainstore]
   # type: bool
   # env var: LOTUS_CHAINSTORE_ENABLESPLITSTORE
-  #EnableSplitstore = false
+  EnableSplitstore = true
 
   [Chainstore.Splitstore]
     # ColdStoreType specifies the type of the coldstore.
@@ -199,7 +199,7 @@
     #
     # type: string
     # env var: LOTUS_CHAINSTORE_SPLITSTORE_COLDSTORETYPE
-    #ColdStoreType = "messages"
+    #ColdStoreType = "discard"
 
     # HotStoreType specifies the type of the hotstore.
     # Only currently supported value is "badger".
@@ -229,6 +229,35 @@
     # type: uint64
     # env var: LOTUS_CHAINSTORE_SPLITSTORE_HOTSTOREFULLGCFREQUENCY
     #HotStoreFullGCFrequency = 20
+
+    # HotStoreMaxSpaceTarget sets a target max disk size for the hotstore. Splitstore GC
+    # will run moving GC if disk utilization gets within a threshold (150 GB) of the target.
+    # Splitstore GC will NOT run moving GC if the total size of the move would get
+    # within 50 GB of the target, and instead will run a more aggressive online GC.
+    # If both HotStoreFullGCFrequency and HotStoreMaxSpaceTarget are set then splitstore
+    # GC will trigger moving GC if either configuration condition is met.
+    # A reasonable minimum is 2x fully GCed hotstore size + 50 G buffer.
+    # At this minimum size moving GC happens every time, any smaller and moving GC won't
+    # be able to run. In spring 2023 this minimum is ~550 GB.
+    #
+    # type: uint64
+    # env var: LOTUS_CHAINSTORE_SPLITSTORE_HOTSTOREMAXSPACETARGET
+    #HotStoreMaxSpaceTarget = 650000000000
+
+    # When HotStoreMaxSpaceTarget is set Moving GC will be triggered when total moving size
+    # exceeds HotstoreMaxSpaceTarget - HotstoreMaxSpaceThreshold
+    #
+    # type: uint64
+    # env var: LOTUS_CHAINSTORE_SPLITSTORE_HOTSTOREMAXSPACETHRESHOLD
+    #HotStoreMaxSpaceThreshold = 150000000000
+
+    # Safety buffer to prevent moving GC from overflowing disk when HotStoreMaxSpaceTarget
+    # is set.  Moving GC will not occur when total moving size exceeds
+    # HotstoreMaxSpaceTarget - HotstoreMaxSpaceSafetyBuffer
+    #
+    # type: uint64
+    # env var: LOTUS_CHAINSTORE_SPLITSTORE_HOTSTOREMAXSPACESAFETYBUFFER
+    #HotstoreMaxSpaceSafetyBuffer = 50000000000
 
 
 [Cluster]
@@ -359,5 +388,43 @@
     # type: string
     # env var: LOTUS_FEVM_EVENTS_DATABASEPATH
     #DatabasePath = ""
+
+
+[Index]
+  # EXPERIMENTAL FEATURE. USE WITH CAUTION
+  # EnableMsgIndex enables indexing of messages on chain.
+  #
+  # type: bool
+  # env var: LOTUS_INDEX_ENABLEMSGINDEX
+  #EnableMsgIndex = false
+
+
+[FaultReporter]
+  # EnableConsensusFaultReporter controls whether the node will monitor and
+  # report consensus faults. When enabled, the node will watch for malicious
+  # behaviors like double-mining and parent grinding, and submit reports to the
+  # network. This can earn reporter rewards, but is not guaranteed. Nodes should
+  # enable fault reporting with care, as it may increase resource usage, and may
+  # generate gas fees without earning rewards.
+  #
+  # type: bool
+  # env var: LOTUS_FAULTREPORTER_ENABLECONSENSUSFAULTREPORTER
+  #EnableConsensusFaultReporter = false
+
+  # ConsensusFaultReporterDataDir is the path where fault reporter state will be
+  # persisted. This directory should have adequate space and permissions for the
+  # node process.
+  #
+  # type: string
+  # env var: LOTUS_FAULTREPORTER_CONSENSUSFAULTREPORTERDATADIR
+  #ConsensusFaultReporterDataDir = ""
+
+  # ConsensusFaultReporterAddress is the wallet address used for submitting
+  # ReportConsensusFault messages. It will pay for gas fees, and receive any
+  # rewards. This address should have adequate funds to cover gas fees.
+  #
+  # type: string
+  # env var: LOTUS_FAULTREPORTER_CONSENSUSFAULTREPORTERADDRESS
+  #ConsensusFaultReporterAddress = ""
 
 

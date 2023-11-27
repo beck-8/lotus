@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/docker/go-units"
@@ -114,7 +113,7 @@ var preSealCmd = &cli.Command{
 		var k *types.KeyInfo
 		if c.String("key") != "" {
 			k = new(types.KeyInfo)
-			kh, err := ioutil.ReadFile(c.String("key"))
+			kh, err := os.ReadFile(c.String("key"))
 			if err != nil {
 				return err
 			}
@@ -138,7 +137,9 @@ var preSealCmd = &cli.Command{
 			nv = network.Version(c.Uint64("network-version"))
 		}
 
-		spt, err := miner.SealProofTypeFromSectorSize(sectorSize, nv)
+		var synthetic = false // there's little reason to have this for a seed.
+
+		spt, err := miner.SealProofTypeFromSectorSize(sectorSize, nv, synthetic)
 		if err != nil {
 			return err
 		}

@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	u "github.com/ipfs/boxo/util"
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
-	u "github.com/ipfs/go-ipfs-util"
 	ipld "github.com/ipfs/go-ipld-format"
-	blocks "github.com/ipfs/go-libipfs/blocks"
 	"github.com/stretchr/testify/require"
 
 	"github.com/filecoin-project/lotus/blockstore"

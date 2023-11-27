@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -130,7 +129,7 @@ func (s *seal) unseal(t *testing.T, sb *Sealer, sp *basicfs.Provider, si storifa
 		t.Fatal(err)
 	}
 
-	expect, _ := ioutil.ReadAll(data(si.ID.Number, 1016))
+	expect, _ := io.ReadAll(data(si.ID.Number, 1016))
 	if !bytes.Equal(b.Bytes(), expect) {
 		t.Fatal("read wrong bytes")
 	}
@@ -160,7 +159,7 @@ func (s *seal) unseal(t *testing.T, sb *Sealer, sp *basicfs.Provider, si storifa
 		t.Fatal(err)
 	}
 
-	expect, _ = ioutil.ReadAll(data(si.ID.Number, 1016))
+	expect, _ = io.ReadAll(data(si.ID.Number, 1016))
 	require.Equal(t, expect, b.Bytes())
 
 	b.Reset()
@@ -251,12 +250,12 @@ func corrupt(t *testing.T, sealer *Sealer, id storiface.SectorRef) {
 }
 
 func getGrothParamFileAndVerifyingKeys(s abi.SectorSize) {
-	dat, err := ioutil.ReadFile("../../../build/proof-params/parameters.json")
+	dat, err := os.ReadFile("../../../build/proof-params/parameters.json")
 	if err != nil {
 		panic(err)
 	}
 
-	datSrs, err := ioutil.ReadFile("../../../build/proof-params/srs-inner-product.json")
+	datSrs, err := os.ReadFile("../../../build/proof-params/srs-inner-product.json")
 	if err != nil {
 		panic(err)
 	}
@@ -292,7 +291,7 @@ func TestSealAndVerify(t *testing.T) {
 
 	getGrothParamFileAndVerifyingKeys(sectorSize)
 
-	cdir, err := ioutil.TempDir("", "sbtest-c-")
+	cdir, err := os.MkdirTemp("", "sbtest-c-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,7 +362,7 @@ func TestSealPoStNoCommit(t *testing.T) {
 
 	getGrothParamFileAndVerifyingKeys(sectorSize)
 
-	dir, err := ioutil.TempDir("", "sbtest")
+	dir, err := os.MkdirTemp("", "sbtest")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -427,7 +426,7 @@ func TestSealAndVerify3(t *testing.T) {
 
 	getGrothParamFileAndVerifyingKeys(sectorSize)
 
-	dir, err := ioutil.TempDir("", "sbtest")
+	dir, err := os.MkdirTemp("", "sbtest")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -505,7 +504,7 @@ func TestSealAndVerifyAggregate(t *testing.T) {
 
 	getGrothParamFileAndVerifyingKeys(sectorSize)
 
-	cdir, err := ioutil.TempDir("", "sbtest-c-")
+	cdir, err := os.MkdirTemp("", "sbtest-c-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -587,7 +586,7 @@ func BenchmarkWriteWithAlignment(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
 		rf, w, _ := commpffi.ToReadableFile(bytes.NewReader(bytes.Repeat([]byte{0xff, 0}, int(bt/2))), int64(bt))
-		tf, _ := ioutil.TempFile("/tmp/", "scrb-")
+		tf, _ := os.CreateTemp("/tmp/", "scrb-")
 		b.StartTimer()
 
 		ffi.WriteWithAlignment(abi.RegisteredSealProof_StackedDrg2KiBV1, rf, bt, tf, nil) // nolint:errcheck
@@ -746,7 +745,7 @@ func TestGenerateUnsealedCID(t *testing.T) {
 func TestAddPiece512M(t *testing.T) {
 	sz := abi.PaddedPieceSize(512 << 20).Unpadded()
 
-	cdir, err := ioutil.TempDir("", "sbtest-c-")
+	cdir, err := os.MkdirTemp("", "sbtest-c-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -790,7 +789,7 @@ func BenchmarkAddPiece512M(b *testing.B) {
 	sz := abi.PaddedPieceSize(512 << 20).Unpadded()
 	b.SetBytes(int64(sz))
 
-	cdir, err := ioutil.TempDir("", "sbtest-c-")
+	cdir, err := os.MkdirTemp("", "sbtest-c-")
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -832,7 +831,7 @@ func BenchmarkAddPiece512M(b *testing.B) {
 func TestAddPiece512MPadded(t *testing.T) {
 	sz := abi.PaddedPieceSize(512 << 20).Unpadded()
 
-	cdir, err := ioutil.TempDir("", "sbtest-c-")
+	cdir, err := os.MkdirTemp("", "sbtest-c-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -901,7 +900,7 @@ func TestMulticoreSDR(t *testing.T) {
 
 	getGrothParamFileAndVerifyingKeys(sectorSize)
 
-	dir, err := ioutil.TempDir("", "sbtest")
+	dir, err := os.MkdirTemp("", "sbtest")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1006,7 +1005,7 @@ func TestPoStChallengeAssumptions(t *testing.T) {
 func TestDCAPCloses(t *testing.T) {
 	sz := abi.PaddedPieceSize(2 << 10).Unpadded()
 
-	cdir, err := ioutil.TempDir("", "sbtest-c-")
+	cdir, err := os.MkdirTemp("", "sbtest-c-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1067,7 +1066,111 @@ func TestDCAPCloses(t *testing.T) {
 		require.Equal(t, "baga6ea4seaqeje7jy4hufnybpo7ckxzujaigqbcxhdjq7ojb4b6xzgqdugkyciq", c.PieceCID.String())
 		require.True(t, clr.closed)
 	})
+}
 
+func TestSealAndVerifySynth(t *testing.T) {
+	sealProofType = abi.RegisteredSealProof_StackedDrg2KiBV1_1_Feat_SyntheticPoRep
+
+	if testing.Short() {
+		t.Skip("skipping test in short mode")
+	}
+
+	defer requireFDsClosed(t, openFDs(t))
+
+	if runtime.NumCPU() < 10 && os.Getenv("CI") == "" { // don't bother on slow hardware
+		t.Skip("this is slow")
+	}
+	_ = os.Setenv("RUST_LOG", "info")
+
+	getGrothParamFileAndVerifyingKeys(sectorSize)
+
+	cdir, err := os.MkdirTemp("", "sbtest-c-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	miner := abi.ActorID(123)
+
+	synthPorRepVProofsName := "syn-porep-vanilla-proofs.dat"
+
+	printFileList := func(stage string, expectSynthPorep bool) {
+		var hasSynthPorep bool
+
+		fmt.Println("----file list:", stage)
+		err := filepath.Walk(cdir, func(path string, info os.FileInfo, err error) error {
+			if strings.Contains(path, synthPorRepVProofsName) {
+				hasSynthPorep = true
+			}
+			fmt.Println(path)
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		require.Equal(t, expectSynthPorep, hasSynthPorep)
+
+		fmt.Println("----")
+	}
+
+	sp := &basicfs.Provider{
+		Root: cdir,
+	}
+	sb, err := New(sp)
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+	t.Cleanup(func() {
+		if t.Failed() {
+			fmt.Printf("not removing %s\n", cdir)
+			return
+		}
+		if err := os.RemoveAll(cdir); err != nil {
+			t.Error(err)
+		}
+	})
+
+	si := storiface.SectorRef{
+		ID:        abi.SectorID{Miner: miner, Number: 1},
+		ProofType: sealProofType,
+	}
+
+	s := seal{ref: si}
+
+	start := time.Now()
+
+	s.precommit(t, sb, si, func() {})
+
+	printFileList("precommit", true)
+
+	precommit := time.Now()
+
+	s.commit(t, sb, func() {})
+
+	printFileList("commit", true)
+
+	commit := time.Now()
+
+	post(t, sb, nil, s)
+
+	printFileList("post", true)
+
+	epost := time.Now()
+
+	post(t, sb, nil, s)
+
+	if err := sb.FinalizeSector(context.TODO(), si); err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	printFileList("finalize", false)
+
+	s.unseal(t, sb, sp, si, func() {})
+
+	printFileList("unseal", false)
+
+	fmt.Printf("PreCommit: %s\n", precommit.Sub(start).String())
+	fmt.Printf("Commit: %s\n", commit.Sub(precommit).String())
+	fmt.Printf("EPoSt: %s\n", epost.Sub(commit).String())
 }
 
 type closeAssertReader struct {

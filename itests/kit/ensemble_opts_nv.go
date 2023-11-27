@@ -23,50 +23,24 @@ func GenesisNetworkVersion(nv network.Version) EnsembleOpt {
 	})
 }
 
-func SDRUpgradeAt(calico, persian abi.ChainEpoch) EnsembleOpt {
-	return UpgradeSchedule(stmgr.Upgrade{
-		Network: network.Version6,
-		Height:  -1,
-	}, stmgr.Upgrade{
-		Network:   network.Version7,
-		Height:    calico,
-		Migration: filcns.UpgradeCalico,
-	}, stmgr.Upgrade{
-		Network: network.Version8,
-		Height:  persian,
-	})
-}
-
 func LatestActorsAt(upgradeHeight abi.ChainEpoch) EnsembleOpt {
-	// TODO: nv19: Re-enable when migration is setup
-	///* inline-gen template
-	//	return UpgradeSchedule(stmgr.Upgrade{
-	//		Network: network.Version{{add .latestNetworkVersion -1}},
-	//		Height:  -1,
-	//	}, stmgr.Upgrade{
-	//		Network:   network.Version{{.latestNetworkVersion}},
-	//		Height:    upgradeHeight,
-	//		Migration: filcns.UpgradeActorsV{{.latestActorsVersion}},
-	//	})
-	///* inline-gen start */
+	/* inline-gen template
+		return UpgradeSchedule(stmgr.Upgrade{
+			Network: network.Version{{add .latestNetworkVersion -1}},
+			Height:  -1,
+		}, stmgr.Upgrade{
+			Network:   network.Version{{.latestNetworkVersion}},
+			Height:    upgradeHeight,
+			Migration: filcns.UpgradeActorsV{{.latestActorsVersion}},
+		})
+	/* inline-gen start */
 	return UpgradeSchedule(stmgr.Upgrade{
-		Network: network.Version17,
+		Network: network.Version20,
 		Height:  -1,
 	}, stmgr.Upgrade{
-		Network:   network.Version18,
+		Network:   network.Version21,
 		Height:    upgradeHeight,
-		Migration: filcns.UpgradeActorsV10,
+		Migration: filcns.UpgradeActorsV12,
 	})
-	///* inline-gen end */
-}
-
-func TurboUpgradeAt(upgradeHeight abi.ChainEpoch) EnsembleOpt {
-	return UpgradeSchedule(stmgr.Upgrade{
-		Network: network.Version11,
-		Height:  -1,
-	}, stmgr.Upgrade{
-		Network:   network.Version12,
-		Height:    upgradeHeight,
-		Migration: filcns.UpgradeActorsV4,
-	})
+	/* inline-gen end */
 }

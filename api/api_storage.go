@@ -11,7 +11,7 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-bitfield"
-	datatransfer "github.com/filecoin-project/go-data-transfer"
+	datatransfer "github.com/filecoin-project/go-data-transfer/v2"
 	"github.com/filecoin-project/go-fil-markets/piecestore"
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
@@ -19,10 +19,10 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/go-state-types/builtin/v9/market"
-	"github.com/filecoin-project/go-state-types/builtin/v9/miner"
 	abinetwork "github.com/filecoin-project/go-state-types/network"
 
 	builtinactors "github.com/filecoin-project/lotus/chain/actors/builtin"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/storage/pipeline/sealiface"
 	"github.com/filecoin-project/lotus/storage/sealer/fsutil"
@@ -129,6 +129,8 @@ type StorageMiner interface {
 	SectorMatchPendingPiecesToOpenSectors(ctx context.Context) error //perm:admin
 	// SectorAbortUpgrade can be called on sectors that are in the process of being upgraded to abort it
 	SectorAbortUpgrade(context.Context, abi.SectorNumber) error //perm:admin
+	// SectorUnseal unseals the provided sector
+	SectorUnseal(ctx context.Context, number abi.SectorNumber) error //perm:admin
 
 	// SectorNumAssignerMeta returns sector number assigner metadata - reserved/allocated
 	SectorNumAssignerMeta(ctx context.Context) (NumAssignerMeta, error) //perm:read
@@ -212,9 +214,11 @@ type StorageMiner interface {
 	StorageDetachLocal(ctx context.Context, path string) error                           //perm:admin
 	StorageRedeclareLocal(ctx context.Context, id *storiface.ID, dropMissing bool) error //perm:admin
 
-	MarketImportDealData(ctx context.Context, propcid cid.Cid, path string) error                                                                                                        //perm:write
-	MarketListDeals(ctx context.Context) ([]*MarketDeal, error)                                                                                                                          //perm:read
-	MarketListRetrievalDeals(ctx context.Context) ([]retrievalmarket.ProviderDealState, error)                                                                                           //perm:read
+	MarketImportDealData(ctx context.Context, propcid cid.Cid, path string) error //perm:write
+	MarketListDeals(ctx context.Context) ([]*MarketDeal, error)                   //perm:read
+
+	// MarketListRetrievalDeals is deprecated, returns empty list
+	MarketListRetrievalDeals(ctx context.Context) ([]struct{}, error)                                                                                                                    //perm:read
 	MarketGetDealUpdates(ctx context.Context) (<-chan storagemarket.MinerDeal, error)                                                                                                    //perm:read
 	MarketListIncompleteDeals(ctx context.Context) ([]storagemarket.MinerDeal, error)                                                                                                    //perm:read
 	MarketSetAsk(ctx context.Context, price types.BigInt, verifiedPrice types.BigInt, duration abi.ChainEpoch, minPieceSize abi.PaddedPieceSize, maxPieceSize abi.PaddedPieceSize) error //perm:admin
@@ -457,10 +461,15 @@ type SectorOffset struct {
 
 // DealInfo is a tuple of deal identity and its schedule
 type PieceDealInfo struct {
+	// "Old" builtin-market deal info
 	PublishCid   *cid.Cid
 	DealID       abi.DealID
 	DealProposal *market.DealProposal
+
+	// Common deal info
 	DealSchedule DealSchedule
+
+	// Best-effort deal asks
 	KeepUnsealed bool
 }
 
