@@ -7,12 +7,20 @@ import (
 	actorstypes "github.com/filecoin-project/go-state-types/actors"
 	"github.com/filecoin-project/go-state-types/big"
 	builtin10 "github.com/filecoin-project/go-state-types/builtin"
+	builtin11 "github.com/filecoin-project/go-state-types/builtin"
+	builtin12 "github.com/filecoin-project/go-state-types/builtin"
 	builtin8 "github.com/filecoin-project/go-state-types/builtin"
 	builtin9 "github.com/filecoin-project/go-state-types/builtin"
 	market10 "github.com/filecoin-project/go-state-types/builtin/v10/market"
 	miner10 "github.com/filecoin-project/go-state-types/builtin/v10/miner"
-	paych10 "github.com/filecoin-project/go-state-types/builtin/v10/paych"
 	verifreg10 "github.com/filecoin-project/go-state-types/builtin/v10/verifreg"
+	market11 "github.com/filecoin-project/go-state-types/builtin/v11/market"
+	miner11 "github.com/filecoin-project/go-state-types/builtin/v11/miner"
+	verifreg11 "github.com/filecoin-project/go-state-types/builtin/v11/verifreg"
+	market12 "github.com/filecoin-project/go-state-types/builtin/v12/market"
+	miner12 "github.com/filecoin-project/go-state-types/builtin/v12/miner"
+	paych12 "github.com/filecoin-project/go-state-types/builtin/v12/paych"
+	verifreg12 "github.com/filecoin-project/go-state-types/builtin/v12/verifreg"
 	market8 "github.com/filecoin-project/go-state-types/builtin/v8/market"
 	miner8 "github.com/filecoin-project/go-state-types/builtin/v8/miner"
 	verifreg8 "github.com/filecoin-project/go-state-types/builtin/v8/verifreg"
@@ -51,10 +59,14 @@ import (
 )
 
 const (
-	ChainFinality                  = miner10.ChainFinality
+	ChainFinality                  = miner12.ChainFinality
 	SealRandomnessLookback         = ChainFinality
-	PaychSettleDelay               = paych10.SettleDelay
-	MaxPreCommitRandomnessLookback = builtin10.EpochsInDay + SealRandomnessLookback
+	PaychSettleDelay               = paych12.SettleDelay
+	MaxPreCommitRandomnessLookback = builtin12.EpochsInDay + SealRandomnessLookback
+)
+
+var (
+	MarketDefaultAllocationTermBuffer = market12.MarketDefaultAllocationTermBuffer
 )
 
 // SetSupportedProofTypes sets supported proof types, across all actor versions.
@@ -165,11 +177,15 @@ func SetPreCommitChallengeDelay(delay abi.ChainEpoch) {
 
 	miner10.PreCommitChallengeDelay = delay
 
+	miner11.PreCommitChallengeDelay = delay
+
+	miner12.PreCommitChallengeDelay = delay
+
 }
 
 // TODO: this function shouldn't really exist. Instead, the API should expose the precommit delay.
 func GetPreCommitChallengeDelay() abi.ChainEpoch {
-	return miner10.PreCommitChallengeDelay
+	return miner12.PreCommitChallengeDelay
 }
 
 // SetConsensusMinerMinPower sets the minimum power of an individual miner must
@@ -215,6 +231,14 @@ func SetConsensusMinerMinPower(p abi.StoragePower) {
 		policy.ConsensusMinerMinPower = p
 	}
 
+	for _, policy := range builtin11.PoStProofPolicies {
+		policy.ConsensusMinerMinPower = p
+	}
+
+	for _, policy := range builtin12.PoStProofPolicies {
+		policy.ConsensusMinerMinPower = p
+	}
+
 }
 
 // SetMinVerifiedDealSize sets the minimum size of a verified deal. This should
@@ -240,6 +264,10 @@ func SetMinVerifiedDealSize(size abi.StoragePower) {
 	verifreg9.MinVerifiedDealSize = size
 
 	verifreg10.MinVerifiedDealSize = size
+
+	verifreg11.MinVerifiedDealSize = size
+
+	verifreg12.MinVerifiedDealSize = size
 
 }
 
@@ -285,6 +313,14 @@ func GetMaxProveCommitDuration(ver actorstypes.Version, t abi.RegisteredSealProo
 	case actorstypes.Version10:
 
 		return miner10.MaxProveCommitDuration[t], nil
+
+	case actorstypes.Version11:
+
+		return miner11.MaxProveCommitDuration[t], nil
+
+	case actorstypes.Version12:
+
+		return miner12.MaxProveCommitDuration[t], nil
 
 	default:
 		return 0, xerrors.Errorf("unsupported actors version")
@@ -337,6 +373,16 @@ func SetProviderCollateralSupplyTarget(num, denom big.Int) {
 	}
 
 	market10.ProviderCollateralSupplyTarget = builtin10.BigFrac{
+		Numerator:   num,
+		Denominator: denom,
+	}
+
+	market11.ProviderCollateralSupplyTarget = builtin11.BigFrac{
+		Numerator:   num,
+		Denominator: denom,
+	}
+
+	market12.ProviderCollateralSupplyTarget = builtin12.BigFrac{
 		Numerator:   num,
 		Denominator: denom,
 	}
@@ -404,13 +450,23 @@ func DealProviderCollateralBounds(
 		min, max := market10.DealProviderCollateralBounds(size, verified, rawBytePower, qaPower, baselinePower, circulatingFil)
 		return min, max, nil
 
+	case actorstypes.Version11:
+
+		min, max := market11.DealProviderCollateralBounds(size, verified, rawBytePower, qaPower, baselinePower, circulatingFil)
+		return min, max, nil
+
+	case actorstypes.Version12:
+
+		min, max := market12.DealProviderCollateralBounds(size, verified, rawBytePower, qaPower, baselinePower, circulatingFil)
+		return min, max, nil
+
 	default:
 		return big.Zero(), big.Zero(), xerrors.Errorf("unsupported actors version")
 	}
 }
 
 func DealDurationBounds(pieceSize abi.PaddedPieceSize) (min, max abi.ChainEpoch) {
-	return market10.DealDurationBounds(pieceSize)
+	return market12.DealDurationBounds(pieceSize)
 }
 
 // Sets the challenge window and scales the proving period to match (such that
@@ -479,6 +535,20 @@ func SetWPoStChallengeWindow(period abi.ChainEpoch) {
 	// scale it if we're scaling the challenge period.
 	miner10.WPoStDisputeWindow = period * 30
 
+	miner11.WPoStChallengeWindow = period
+	miner11.WPoStProvingPeriod = period * abi.ChainEpoch(miner11.WPoStPeriodDeadlines)
+
+	// by default, this is 2x finality which is 30 periods.
+	// scale it if we're scaling the challenge period.
+	miner11.WPoStDisputeWindow = period * 30
+
+	miner12.WPoStChallengeWindow = period
+	miner12.WPoStProvingPeriod = period * abi.ChainEpoch(miner12.WPoStPeriodDeadlines)
+
+	// by default, this is 2x finality which is 30 periods.
+	// scale it if we're scaling the challenge period.
+	miner12.WPoStDisputeWindow = period * 30
+
 }
 
 func GetWinningPoStSectorSetLookback(nwVer network.Version) abi.ChainEpoch {
@@ -490,16 +560,61 @@ func GetWinningPoStSectorSetLookback(nwVer network.Version) abi.ChainEpoch {
 	return ChainFinality
 }
 
-func GetMaxSectorExpirationExtension() abi.ChainEpoch {
-	return miner10.MaxSectorExpirationExtension
+func GetMaxSectorExpirationExtension(nv network.Version) (abi.ChainEpoch, error) {
+	v, err := actorstypes.VersionForNetwork(nv)
+	if err != nil {
+		return 0, xerrors.Errorf("failed to get actors version: %w", err)
+	}
+	switch v {
+
+	case actorstypes.Version0:
+		return miner0.MaxSectorExpirationExtension, nil
+
+	case actorstypes.Version2:
+		return miner2.MaxSectorExpirationExtension, nil
+
+	case actorstypes.Version3:
+		return miner3.MaxSectorExpirationExtension, nil
+
+	case actorstypes.Version4:
+		return miner4.MaxSectorExpirationExtension, nil
+
+	case actorstypes.Version5:
+		return miner5.MaxSectorExpirationExtension, nil
+
+	case actorstypes.Version6:
+		return miner6.MaxSectorExpirationExtension, nil
+
+	case actorstypes.Version7:
+		return miner7.MaxSectorExpirationExtension, nil
+
+	case actorstypes.Version8:
+		return miner8.MaxSectorExpirationExtension, nil
+
+	case actorstypes.Version9:
+		return miner9.MaxSectorExpirationExtension, nil
+
+	case actorstypes.Version10:
+		return miner10.MaxSectorExpirationExtension, nil
+
+	case actorstypes.Version11:
+		return miner11.MaxSectorExpirationExtension, nil
+
+	case actorstypes.Version12:
+		return miner12.MaxSectorExpirationExtension, nil
+
+	default:
+		return 0, xerrors.Errorf("unsupported network version")
+	}
+
 }
 
 func GetMinSectorExpiration() abi.ChainEpoch {
-	return miner10.MinSectorExpiration
+	return miner12.MinSectorExpiration
 }
 
 func GetMaxPoStPartitions(nv network.Version, p abi.RegisteredPoStProof) (int, error) {
-	sectorsPerPart, err := builtin10.PoStProofWindowPoStPartitionSectors(p)
+	sectorsPerPart, err := builtin12.PoStProofWindowPoStPartitionSectors(p)
 	if err != nil {
 		return 0, err
 	}
@@ -507,7 +622,8 @@ func GetMaxPoStPartitions(nv network.Version, p abi.RegisteredPoStProof) (int, e
 	if err != nil {
 		return 0, err
 	}
-	return int(uint64(maxSectors) / sectorsPerPart), nil
+
+	return min(miner12.PoStedPartitionsMax, int(uint64(maxSectors)/sectorsPerPart)), nil
 }
 
 func GetDefaultAggregationProof() abi.RegisteredAggregationProof {
@@ -519,7 +635,7 @@ func GetSectorMaxLifetime(proof abi.RegisteredSealProof, nwVer network.Version) 
 		return builtin4.SealProofPoliciesV0[proof].SectorMaxLifetime
 	}
 
-	return builtin10.SealProofPoliciesV11[proof].SectorMaxLifetime
+	return builtin12.SealProofPoliciesV11[proof].SectorMaxLifetime
 }
 
 func GetAddressedSectorsMax(nwVer network.Version) (int, error) {
@@ -558,6 +674,12 @@ func GetAddressedSectorsMax(nwVer network.Version) (int, error) {
 
 	case actorstypes.Version10:
 		return miner10.AddressedSectorsMax, nil
+
+	case actorstypes.Version11:
+		return miner11.AddressedSectorsMax, nil
+
+	case actorstypes.Version12:
+		return miner12.AddressedSectorsMax, nil
 
 	default:
 		return 0, xerrors.Errorf("unsupported network version")
@@ -612,6 +734,14 @@ func GetDeclarationsMax(nwVer network.Version) (int, error) {
 
 		return miner10.DeclarationsMax, nil
 
+	case actorstypes.Version11:
+
+		return miner11.DeclarationsMax, nil
+
+	case actorstypes.Version12:
+
+		return miner12.DeclarationsMax, nil
+
 	default:
 		return 0, xerrors.Errorf("unsupported network version")
 	}
@@ -663,6 +793,14 @@ func AggregateProveCommitNetworkFee(nwVer network.Version, aggregateSize int, ba
 	case actorstypes.Version10:
 
 		return miner10.AggregateProveCommitNetworkFee(aggregateSize, baseFee), nil
+
+	case actorstypes.Version11:
+
+		return miner11.AggregateProveCommitNetworkFee(aggregateSize, baseFee), nil
+
+	case actorstypes.Version12:
+
+		return miner12.AggregateProveCommitNetworkFee(aggregateSize, baseFee), nil
 
 	default:
 		return big.Zero(), xerrors.Errorf("unsupported network version")
@@ -716,7 +854,22 @@ func AggregatePreCommitNetworkFee(nwVer network.Version, aggregateSize int, base
 
 		return miner10.AggregatePreCommitNetworkFee(aggregateSize, baseFee), nil
 
+	case actorstypes.Version11:
+
+		return miner11.AggregatePreCommitNetworkFee(aggregateSize, baseFee), nil
+
+	case actorstypes.Version12:
+
+		return miner12.AggregatePreCommitNetworkFee(aggregateSize, baseFee), nil
+
 	default:
 		return big.Zero(), xerrors.Errorf("unsupported network version")
 	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

@@ -22,12 +22,14 @@ type Common struct {
 // FullNode is a full node config
 type FullNode struct {
 	Common
-	Client     Client
-	Wallet     Wallet
-	Fees       FeeConfig
-	Chainstore Chainstore
-	Cluster    UserRaftConfig
-	Fevm       FevmConfig
+	Client        Client
+	Wallet        Wallet
+	Fees          FeeConfig
+	Chainstore    Chainstore
+	Cluster       UserRaftConfig
+	Fevm          FevmConfig
+	Index         IndexConfig
+	FaultReporter FaultReporterConfig
 }
 
 // // Common
@@ -288,13 +290,10 @@ type ProvingConfig struct {
 	// 'lotus-miner proving compute window-post 0'
 	DisableWDPoStPreChecks bool
 
-	// Maximum number of partitions to prove in a single SubmitWindowPoSt messace. 0 = network limit (10 in nv16)
+	// Maximum number of partitions to prove in a single SubmitWindowPoSt messace. 0 = network limit (3 in nv21)
 	//
 	// A single partition may contain up to 2349 32GiB sectors, or 2300 64GiB sectors.
-	//
-	// The maximum number of sectors which can be proven in a single PoSt message is 25000 in network version 16, which
-	// means that a single message can prove at most 10 partitions
-	//
+	//	//
 	// Note that setting this value lower may result in less efficient gas use - more messages will be sent,
 	// to prove each deadline, resulting in more total gas use (but each message will have lower gas limit)
 	//
@@ -351,20 +350,12 @@ type SealingConfig struct {
 	// required to have expiration of at least the soonest-ending deal
 	MinUpgradeSectorExpiration uint64
 
-	// When set to a non-zero value, minimum number of epochs until sector expiration above which upgrade candidates will
-	// be selected based on lowest initial pledge.
-	//
-	// Target sector expiration is calculated by looking at the input deal queue, sorting it by deal expiration, and
-	// selecting N deals from the queue up to sector size. The target expiration will be Nth deal end epoch, or in case
-	// where there weren't enough deals to fill a sector, DealMaxDuration (540 days = 1555200 epochs)
-	//
-	// Setting this to a high value (for example to maximum deal duration - 1555200) will disable selection based on
-	// initial pledge - upgrade sectors will always be chosen based on longest expiration
+	// DEPRECATED: Target expiration is no longer used
 	MinTargetUpgradeSectorExpiration uint64
 
 	// CommittedCapacitySectorLifetime is the duration a Committed Capacity (CC) sector will
 	// live before it must be extended or converted into sector containing deals before it is
-	// terminated. Value must be between 180-540 days inclusive
+	// terminated. Value must be between 180-1278 days (1278 in nv21, 540 before nv21).
 	CommittedCapacitySectorLifetime Duration
 
 	// Period of time that a newly created sector will wait for more deals to be packed in to before it starts to seal.
@@ -393,8 +384,6 @@ type SealingConfig struct {
 	// Don't send collateral with messages even if there is no available balance in the miner actor
 	DisableCollateralFallback bool
 
-	// enable / disable precommit batching (takes effect after nv13)
-	BatchPreCommits bool
 	// maximum precommit batch size - batches will be sent immediately above this size
 	MaxPreCommitBatch int
 	// how long to wait before submitting a batch after crossing the minimum batch size
@@ -414,12 +403,20 @@ type SealingConfig struct {
 	CommitBatchSlack Duration
 
 	// network BaseFee below which to stop doing precommit batching, instead
-	// sending precommit messages to the chain individually
+	// sending precommit messages to the chain individually. When the basefee is
+	// below this threshold, precommit messages will get sent out immediately.
 	BatchPreCommitAboveBaseFee types.FIL
 
 	// network BaseFee below which to stop doing commit aggregation, instead
 	// submitting proofs to the chain individually
 	AggregateAboveBaseFee types.FIL
+
+	// When submitting several sector prove commit messages simultaneously, this option allows you to
+	// stagger the number of prove commits submitted per epoch
+	// This is done because gas estimates for ProveCommits are non deterministic and increasing as a large
+	// number of sectors get committed within the same epoch resulting in occasionally failed msgs.
+	// Submitting a smaller number of prove commits per epoch would reduce the possibility of failed msgs
+	MaxSectorProveCommitsSubmittedPerEpoch uint64
 
 	TerminateBatchMax  uint64
 	TerminateBatchMin  uint64
@@ -429,6 +426,9 @@ type SealingConfig struct {
 	// todo TargetSealingSectors uint64
 
 	// todo TargetSectors - stop auto-pleding new sectors after this many sectors are sealed, default CC upgrade for deals sectors if above
+
+	// UseSyntheticPoRep, when set to true, will reduce the amount of cache data held on disk after the completion of PreCommit 2 to 11GiB.
+	UseSyntheticPoRep bool
 }
 
 type SealerConfig struct {
@@ -601,6 +601,25 @@ type Splitstore struct {
 	// A value of 0 disables, while a value 1 will do full GC in every compaction.
 	// Default is 20 (about once a week).
 	HotStoreFullGCFrequency uint64
+	// HotStoreMaxSpaceTarget sets a target max disk size for the hotstore. Splitstore GC
+	// will run moving GC if disk utilization gets within a threshold (150 GB) of the target.
+	// Splitstore GC will NOT run moving GC if the total size of the move would get
+	// within 50 GB of the target, and instead will run a more aggressive online GC.
+	// If both HotStoreFullGCFrequency and HotStoreMaxSpaceTarget are set then splitstore
+	// GC will trigger moving GC if either configuration condition is met.
+	// A reasonable minimum is 2x fully GCed hotstore size + 50 G buffer.
+	// At this minimum size moving GC happens every time, any smaller and moving GC won't
+	// be able to run. In spring 2023 this minimum is ~550 GB.
+	HotStoreMaxSpaceTarget uint64
+
+	// When HotStoreMaxSpaceTarget is set Moving GC will be triggered when total moving size
+	// exceeds HotstoreMaxSpaceTarget - HotstoreMaxSpaceThreshold
+	HotStoreMaxSpaceThreshold uint64
+
+	// Safety buffer to prevent moving GC from overflowing disk when HotStoreMaxSpaceTarget
+	// is set.  Moving GC will not occur when total moving size exceeds
+	// HotstoreMaxSpaceTarget - HotstoreMaxSpaceSafetyBuffer
+	HotstoreMaxSpaceSafetyBuffer uint64
 }
 
 // // Full Node
@@ -706,4 +725,30 @@ type Events struct {
 	// Set a limit on the number of active websocket subscriptions (may be zero)
 	// Set a timeout for subscription clients
 	// Set upper bound on index size
+}
+
+type IndexConfig struct {
+	// EXPERIMENTAL FEATURE. USE WITH CAUTION
+	// EnableMsgIndex enables indexing of messages on chain.
+	EnableMsgIndex bool
+}
+
+type FaultReporterConfig struct {
+	// EnableConsensusFaultReporter controls whether the node will monitor and
+	// report consensus faults. When enabled, the node will watch for malicious
+	// behaviors like double-mining and parent grinding, and submit reports to the
+	// network. This can earn reporter rewards, but is not guaranteed. Nodes should
+	// enable fault reporting with care, as it may increase resource usage, and may
+	// generate gas fees without earning rewards.
+	EnableConsensusFaultReporter bool
+
+	// ConsensusFaultReporterDataDir is the path where fault reporter state will be
+	// persisted. This directory should have adequate space and permissions for the
+	// node process.
+	ConsensusFaultReporterDataDir string
+
+	// ConsensusFaultReporterAddress is the wallet address used for submitting
+	// ReportConsensusFault messages. It will pay for gas fees, and receive any
+	// rewards. This address should have adequate funds to cover gas fees.
+	ConsensusFaultReporterAddress string
 }

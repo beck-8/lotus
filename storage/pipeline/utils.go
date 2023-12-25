@@ -10,7 +10,6 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
-	"github.com/filecoin-project/go-state-types/builtin/v9/miner"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -94,6 +93,21 @@ func collateralSendAmount(ctx context.Context, api interface {
 	return collateral, nil
 }
 
+func simulateMsgGas(ctx context.Context, sa interface {
+	GasEstimateMessageGas(context.Context, *types.Message, *api.MessageSendSpec, types.TipSetKey) (*types.Message, error)
+},
+	from, to address.Address, method abi.MethodNum, value, maxFee abi.TokenAmount, params []byte) (*types.Message, error) {
+	msg := types.Message{
+		To:     to,
+		From:   from,
+		Value:  value,
+		Method: method,
+		Params: params,
+	}
+
+	return sa.GasEstimateMessageGas(ctx, &msg, nil, types.EmptyTSK)
+}
+
 func sendMsg(ctx context.Context, sa interface {
 	MpoolPushMessage(context.Context, *types.Message, *api.MessageSendSpec) (*types.SignedMessage, error)
 }, from, to address.Address, method abi.MethodNum, value, maxFee abi.TokenAmount, params []byte) (cid.Cid, error) {
@@ -111,15 +125,4 @@ func sendMsg(ctx context.Context, sa interface {
 	}
 
 	return smsg.Cid(), nil
-}
-
-func infoToPreCommitSectorParams(info *miner.SectorPreCommitInfo) *miner.PreCommitSectorParams {
-	return &miner.PreCommitSectorParams{
-		SealProof:     info.SealProof,
-		SectorNumber:  info.SectorNumber,
-		SealedCID:     info.SealedCID,
-		SealRandEpoch: info.SealRandEpoch,
-		DealIDs:       info.DealIDs,
-		Expiration:    info.Expiration,
-	}
 }

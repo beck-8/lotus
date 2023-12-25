@@ -79,7 +79,7 @@ func EthEventAPI(cfg config.FevmConfig) func(helpers.MetricsCtx, repo.LockedRepo
 			}
 
 			var err error
-			eventIndex, err = filter.NewEventIndex(dbPath)
+			eventIndex, err = filter.NewEventIndex(ctx, dbPath, chainapi.Chain)
 			if err != nil {
 				return nil, err
 			}
@@ -130,7 +130,7 @@ func EthEventAPI(cfg config.FevmConfig) func(helpers.MetricsCtx, repo.LockedRepo
 
 		lc.Append(fx.Hook{
 			OnStart: func(context.Context) error {
-				ev, err := events.NewEventsWithConfidence(ctx, &evapi, ChainHeadConfidence)
+				ev, err := events.NewEvents(ctx, &evapi)
 				if err != nil {
 					return err
 				}

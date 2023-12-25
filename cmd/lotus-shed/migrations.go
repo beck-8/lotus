@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-datastore"
 	"github.com/urfave/cli/v2"
 	cbg "github.com/whyrusleeping/cbor-gen"
 	"golang.org/x/xerrors"
@@ -18,6 +20,8 @@ import (
 	actorstypes "github.com/filecoin-project/go-state-types/actors"
 	"github.com/filecoin-project/go-state-types/builtin"
 	v10 "github.com/filecoin-project/go-state-types/builtin/v10"
+	v11 "github.com/filecoin-project/go-state-types/builtin/v11"
+	v12 "github.com/filecoin-project/go-state-types/builtin/v12"
 	market8 "github.com/filecoin-project/go-state-types/builtin/v8/market"
 	adt8 "github.com/filecoin-project/go-state-types/builtin/v8/util/adt"
 	v9 "github.com/filecoin-project/go-state-types/builtin/v9"
@@ -31,6 +35,8 @@ import (
 	"github.com/filecoin-project/specs-actors/v7/actors/migration/nv15"
 
 	"github.com/filecoin-project/lotus/blockstore"
+	badgerbs "github.com/filecoin-project/lotus/blockstore/badger"
+	"github.com/filecoin-project/lotus/blockstore/splitstore"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/actors/adt"
 	lbuiltin "github.com/filecoin-project/lotus/chain/actors/builtin"
@@ -38,7 +44,9 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/builtin/market"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/verifreg"
+	"github.com/filecoin-project/lotus/chain/consensus"
 	"github.com/filecoin-project/lotus/chain/consensus/filcns"
+	"github.com/filecoin-project/lotus/chain/index"
 	"github.com/filecoin-project/lotus/chain/state"
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	"github.com/filecoin-project/lotus/chain/store"
@@ -66,6 +74,7 @@ var migrationsCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
+		fmt.Println("REMINDER: If you are running this, you likely want to ALSO run the continuity testing tool!")
 		ctx := context.TODO()
 
 		if cctx.NArg() != 2 {
@@ -99,28 +108,57 @@ var migrationsCmd = &cli.Command{
 
 		defer lkrepo.Close() //nolint:errcheck
 
-		bs, err := lkrepo.Blockstore(ctx, repo.UniversalBlockstore)
+		cold, err := lkrepo.Blockstore(ctx, repo.UniversalBlockstore)
 		if err != nil {
-			return fmt.Errorf("failed to open blockstore: %w", err)
+			return fmt.Errorf("failed to open universal blockstore %w", err)
 		}
 
-		defer func() {
-			if c, ok := bs.(io.Closer); ok {
-				if err := c.Close(); err != nil {
-					log.Warnf("failed to close blockstore: %s", err)
-				}
-			}
-		}()
+		path, err := lkrepo.SplitstorePath()
+		if err != nil {
+			return err
+		}
+
+		path = filepath.Join(path, "hot.badger")
+		if err := os.MkdirAll(path, 0755); err != nil {
+			return err
+		}
+
+		opts, err := repo.BadgerBlockstoreOptions(repo.HotBlockstore, path, lkrepo.Readonly())
+		if err != nil {
+			return err
+		}
+
+		hot, err := badgerbs.Open(opts)
+		if err != nil {
+			return err
+		}
 
 		mds, err := lkrepo.Datastore(context.Background(), "/metadata")
 		if err != nil {
 			return err
 		}
 
+		cfg := &splitstore.Config{
+			MarkSetType:       "map",
+			DiscardColdBlocks: true,
+		}
+		ss, err := splitstore.Open(path, mds, hot, cold, cfg)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if err := ss.Close(); err != nil {
+				log.Warnf("failed to close blockstore: %s", err)
+
+			}
+		}()
+		bs := ss
+
 		cs := store.NewChainStore(bs, bs, mds, filcns.Weight, nil)
 		defer cs.Close() //nolint:errcheck
 
-		sm, err := stmgr.NewStateManager(cs, filcns.NewTipSetExecutor(), vm.Syscalls(ffiwrapper.ProofVerifier), filcns.DefaultUpgradeSchedule(), nil)
+		// Note: we use a map datastore for the metadata to avoid writing / using cached migration results in the metadata store
+		sm, err := stmgr.NewStateManager(cs, consensus.NewTipSetExecutor(filcns.RewardFunc), vm.Syscalls(ffiwrapper.ProofVerifier), filcns.DefaultUpgradeSchedule(), nil, datastore.NewMapDatastore(), index.DummyMsgIndex)
 		if err != nil {
 			return err
 		}
@@ -165,6 +203,7 @@ var migrationsCmd = &cli.Command{
 			}
 
 			preMigrationTime := time.Since(startTime)
+			fmt.Println("completed premigration, took ", preMigrationTime)
 
 			startTime = time.Now()
 
@@ -179,7 +218,7 @@ var migrationsCmd = &cli.Command{
 				return xerrors.Errorf("got different results with and without the cache: %s, %s", newCid1,
 					newCid2)
 			}
-			fmt.Println("completed premigration, took ", preMigrationTime)
+
 			fmt.Println("completed round actual (with cache), took ", cachedMigrationTime)
 		}
 
@@ -203,6 +242,10 @@ func getMigrationFuncsForNetwork(nv network.Version) (UpgradeActorsFunc, PreUpgr
 		return filcns.UpgradeActorsV9, filcns.PreUpgradeActorsV9, checkNv17Invariants, nil
 	case network.Version18:
 		return filcns.UpgradeActorsV10, filcns.PreUpgradeActorsV10, checkNv18Invariants, nil
+	case network.Version19:
+		return filcns.UpgradeActorsV11, filcns.PreUpgradeActorsV11, checkNv19Invariants, nil
+	case network.Version21:
+		return filcns.UpgradeActorsV12, filcns.PreUpgradeActorsV12, checkNv21Invariants, nil
 	default:
 		return nil, nil, nil, xerrors.Errorf("migration not implemented for nv%d", nv)
 	}
@@ -211,6 +254,71 @@ func getMigrationFuncsForNetwork(nv network.Version) (UpgradeActorsFunc, PreUpgr
 type UpgradeActorsFunc = func(context.Context, *stmgr.StateManager, stmgr.MigrationCache, stmgr.ExecMonitor, cid.Cid, abi.ChainEpoch, *types.TipSet) (cid.Cid, error)
 type PreUpgradeActorsFunc = func(context.Context, *stmgr.StateManager, stmgr.MigrationCache, cid.Cid, abi.ChainEpoch, *types.TipSet) error
 type CheckInvariantsFunc = func(context.Context, cid.Cid, cid.Cid, blockstore.Blockstore, abi.ChainEpoch) error
+
+func checkNv21Invariants(ctx context.Context, oldStateRootCid cid.Cid, newStateRootCid cid.Cid, bs blockstore.Blockstore, epoch abi.ChainEpoch) error {
+
+	actorStore := store.ActorStore(ctx, bs)
+	startTime := time.Now()
+
+	// Load the new state root.
+	var newStateRoot types.StateRoot
+	if err := actorStore.Get(ctx, newStateRootCid, &newStateRoot); err != nil {
+		return xerrors.Errorf("failed to decode state root: %w", err)
+	}
+
+	actorCodeCids, err := actors.GetActorCodeIDs(actorstypes.Version12)
+	if err != nil {
+		return err
+	}
+	newActorTree, err := builtin.LoadTree(actorStore, newStateRoot.Actors)
+	if err != nil {
+		return err
+	}
+	messages, err := v12.CheckStateInvariants(newActorTree, epoch, actorCodeCids)
+	if err != nil {
+		return xerrors.Errorf("checking state invariants: %w", err)
+	}
+
+	for _, message := range messages.Messages() {
+		fmt.Println("got the following error: ", message)
+	}
+
+	fmt.Println("completed invariant checks, took ", time.Since(startTime))
+
+	return nil
+}
+func checkNv19Invariants(ctx context.Context, oldStateRootCid cid.Cid, newStateRootCid cid.Cid, bs blockstore.Blockstore, epoch abi.ChainEpoch) error {
+
+	actorStore := store.ActorStore(ctx, bs)
+	startTime := time.Now()
+
+	// Load the new state root.
+	var newStateRoot types.StateRoot
+	if err := actorStore.Get(ctx, newStateRootCid, &newStateRoot); err != nil {
+		return xerrors.Errorf("failed to decode state root: %w", err)
+	}
+
+	actorCodeCids, err := actors.GetActorCodeIDs(actorstypes.Version11)
+	if err != nil {
+		return err
+	}
+	newActorTree, err := builtin.LoadTree(actorStore, newStateRoot.Actors)
+	if err != nil {
+		return err
+	}
+	messages, err := v11.CheckStateInvariants(newActorTree, epoch, actorCodeCids)
+	if err != nil {
+		return xerrors.Errorf("checking state invariants: %w", err)
+	}
+
+	for _, message := range messages.Messages() {
+		fmt.Println("got the following error: ", message)
+	}
+
+	fmt.Println("completed invariant checks, took ", time.Since(startTime))
+
+	return nil
+}
 
 func checkNv18Invariants(ctx context.Context, oldStateRootCid cid.Cid, newStateRootCid cid.Cid, bs blockstore.Blockstore, epoch abi.ChainEpoch) error {
 	actorStore := store.ActorStore(ctx, bs)

@@ -3,6 +3,7 @@ package bundle
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"os"
 
@@ -53,6 +54,7 @@ func LoadBundles(ctx context.Context, bs blockstore.Blockstore, versions ...acto
 			// All manifests are registered on start, so this must succeed.
 			return xerrors.Errorf("unknown actor version v%d", av)
 		}
+		fmt.Printf("manifest cid: %s\n", manifestCid)
 
 		if haveManifest, err := bs.Has(ctx, manifestCid); err != nil {
 			return xerrors.Errorf("blockstore error when loading manifest %s: %w", manifestCid, err)
@@ -67,7 +69,7 @@ func LoadBundles(ctx context.Context, bs blockstore.Blockstore, versions ...acto
 		)
 		if path, ok := build.BundleOverrides[av]; ok {
 			root, err = LoadBundleFromFile(ctx, bs, path)
-		} else if embedded, ok := build.GetEmbeddedBuiltinActorsBundle(av); ok {
+		} else if embedded, ok := build.GetEmbeddedBuiltinActorsBundle(av, build.NetworkBundle); ok {
 			root, err = LoadBundle(ctx, bs, bytes.NewReader(embedded))
 		} else {
 			err = xerrors.Errorf("bundle for actors version v%d not found", av)

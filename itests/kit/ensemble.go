@@ -6,9 +6,9 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -234,7 +234,7 @@ func (n *Ensemble) MinerEnroll(minerNode *TestMiner, full *TestFullNode, opts ..
 	peerId, err := peer.IDFromPrivateKey(privkey)
 	require.NoError(n.t, err)
 
-	tdir, err := ioutil.TempDir("", "preseal-memgen")
+	tdir, err := os.MkdirTemp("", "preseal-memgen")
 	require.NoError(n.t, err)
 
 	minerCnt := len(n.inactive.miners) + len(n.active.miners)
@@ -258,7 +258,7 @@ func (n *Ensemble) MinerEnroll(minerNode *TestMiner, full *TestFullNode, opts ..
 		)
 
 		// Will use 2KiB sectors by default (default value of sectorSize).
-		proofType, err := miner.SealProofTypeFromSectorSize(options.sectorSize, n.genesis.version)
+		proofType, err := miner.SealProofTypeFromSectorSize(options.sectorSize, n.genesis.version, false)
 		require.NoError(n.t, err)
 
 		// Create the preseal commitment.
@@ -336,6 +336,8 @@ func (n *Ensemble) Worker(minerNode *TestMiner, worker *TestWorker, opts ...Node
 		MinerNode:      minerNode,
 		RemoteListener: rl,
 		options:        options,
+
+		Stop: func(ctx context.Context) error { return nil },
 	}
 
 	n.inactive.workers = append(n.inactive.workers, worker)
@@ -511,7 +513,7 @@ func (n *Ensemble) Start() *Ensemble {
 				// this is a miner created after genesis, so it won't have a preseal.
 				// we need to create it on chain.
 
-				proofType, err := miner.WindowPoStProofTypeFromSectorSize(m.options.sectorSize)
+				proofType, err := miner.WindowPoStProofTypeFromSectorSize(m.options.sectorSize, n.genesis.version)
 				require.NoError(n.t, err)
 
 				params, aerr := actors.SerializeParams(&power3.CreateMinerParams{

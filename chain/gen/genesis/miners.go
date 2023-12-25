@@ -17,6 +17,7 @@ import (
 	actorstypes "github.com/filecoin-project/go-state-types/actors"
 	"github.com/filecoin-project/go-state-types/big"
 	builtintypes "github.com/filecoin-project/go-state-types/builtin"
+	power11 "github.com/filecoin-project/go-state-types/builtin/v11/power"
 	minertypes "github.com/filecoin-project/go-state-types/builtin/v8/miner"
 	markettypes "github.com/filecoin-project/go-state-types/builtin/v9/market"
 	miner9 "github.com/filecoin-project/go-state-types/builtin/v9/miner"
@@ -27,6 +28,7 @@ import (
 	miner0 "github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	power0 "github.com/filecoin-project/specs-actors/actors/builtin/power"
 	reward0 "github.com/filecoin-project/specs-actors/actors/builtin/reward"
+	power2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/power"
 	reward2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/reward"
 	power4 "github.com/filecoin-project/specs-actors/v4/actors/builtin/power"
 	reward4 "github.com/filecoin-project/specs-actors/v4/actors/builtin/reward"
@@ -40,7 +42,8 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/builtin/power"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/reward"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
-	"github.com/filecoin-project/lotus/chain/consensus/filcns"
+	"github.com/filecoin-project/lotus/chain/consensus"
+	lrand "github.com/filecoin-project/lotus/chain/rand"
 	"github.com/filecoin-project/lotus/chain/state"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -76,7 +79,7 @@ func mkFakedSigSyscalls(base vm.SyscallBuilder) vm.SyscallBuilder {
 }
 
 // Note: Much of this is brittle, if the methodNum / param / return changes, it will break things
-func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sys vm.SyscallBuilder, sroot cid.Cid, miners []genesis.Miner, nv network.Version) (cid.Cid, error) {
+func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sys vm.SyscallBuilder, sroot cid.Cid, miners []genesis.Miner, nv network.Version, synthetic bool) (cid.Cid, error) {
 
 	cst := cbor.NewCborStore(cs.StateBlockstore())
 	av, err := actorstypes.VersionForNetwork(nv)
@@ -94,7 +97,7 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sys vm.Syscal
 			Epoch:          0,
 			Rand:           &fakeRand{},
 			Bstore:         cs.StateBlockstore(),
-			Actors:         filcns.NewActorRegistry(),
+			Actors:         consensus.NewActorRegistry(),
 			Syscalls:       mkFakedSigSyscalls(sys),
 			CircSupplyCalc: csc,
 			NetworkVersion: nv,
@@ -122,27 +125,49 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sys vm.Syscal
 		sectorWeight []abi.StoragePower
 	}, len(miners))
 
-	maxPeriods := policy.GetMaxSectorExpirationExtension() / minertypes.WPoStProvingPeriod
+	maxLifetime, err := policy.GetMaxSectorExpirationExtension(nv)
+	if err != nil {
+		return cid.Undef, xerrors.Errorf("failed to get max extension: %w", err)
+	}
+	maxPeriods := maxLifetime / minertypes.WPoStProvingPeriod
 	rawPow, qaPow := big.NewInt(0), big.NewInt(0)
 	for i, m := range miners {
 		// Create miner through power actor
 		i := i
 		m := m
 
-		spt, err := miner.SealProofTypeFromSectorSize(m.SectorSize, nv)
+		spt, err := miner.SealProofTypeFromSectorSize(m.SectorSize, nv, synthetic)
 		if err != nil {
 			return cid.Undef, err
 		}
 
 		{
-			constructorParams := &power0.CreateMinerParams{
-				Owner:         m.Worker,
-				Worker:        m.Worker,
-				Peer:          []byte(m.PeerId),
-				SealProofType: spt,
+			var params []byte
+			if nv <= network.Version10 {
+				constructorParams := &power2.CreateMinerParams{
+					Owner:         m.Worker,
+					Worker:        m.Worker,
+					Peer:          []byte(m.PeerId),
+					SealProofType: spt,
+				}
+
+				params = mustEnc(constructorParams)
+			} else {
+				ppt, err := spt.RegisteredWindowPoStProofByNetworkVersion(nv)
+				if err != nil {
+					return cid.Undef, xerrors.Errorf("failed to convert spt to wpt: %w", err)
+				}
+
+				constructorParams := &power11.CreateMinerParams{
+					Owner:               m.Worker,
+					Worker:              m.Worker,
+					Peer:                []byte(m.PeerId),
+					WindowPoStProofType: ppt,
+				}
+
+				params = mustEnc(constructorParams)
 			}
 
-			params := mustEnc(constructorParams)
 			rval, err := doExecValue(ctx, genesisVm, power.Address, m.Owner, m.PowerBalance, power.Methods.CreateMiner, params)
 			if err != nil {
 				return cid.Undef, xerrors.Errorf("failed to create genesis miner: %w", err)
@@ -570,19 +595,21 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sys vm.Syscal
 	return c, nil
 }
 
+var _ lrand.Rand = new(fakeRand)
+
 // TODO: copied from actors test harness, deduplicate or remove from here
 type fakeRand struct{}
 
-func (fr *fakeRand) GetChainRandomness(ctx context.Context, personalization crypto.DomainSeparationTag, randEpoch abi.ChainEpoch, entropy []byte) ([]byte, error) {
+func (fr *fakeRand) GetChainRandomness(ctx context.Context, randEpoch abi.ChainEpoch) ([32]byte, error) {
 	out := make([]byte, 32)
 	_, _ = rand.New(rand.NewSource(int64(randEpoch * 1000))).Read(out) //nolint
-	return out, nil
+	return *(*[32]byte)(out), nil
 }
 
-func (fr *fakeRand) GetBeaconRandomness(ctx context.Context, personalization crypto.DomainSeparationTag, randEpoch abi.ChainEpoch, entropy []byte) ([]byte, error) {
+func (fr *fakeRand) GetBeaconRandomness(ctx context.Context, randEpoch abi.ChainEpoch) ([32]byte, error) {
 	out := make([]byte, 32)
 	_, _ = rand.New(rand.NewSource(int64(randEpoch))).Read(out) //nolint
-	return out, nil
+	return *(*[32]byte)(out), nil
 }
 
 func currentTotalPower(ctx context.Context, vm vm.Interface, maddr address.Address) (*power0.CurrentTotalPowerReturn, error) {

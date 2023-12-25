@@ -15,8 +15,10 @@ import (
 
 	"github.com/filecoin-project/lotus/blockstore"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
+	"github.com/filecoin-project/lotus/chain/consensus"
 	"github.com/filecoin-project/lotus/chain/consensus/filcns"
 	"github.com/filecoin-project/lotus/chain/gen"
+	"github.com/filecoin-project/lotus/chain/index"
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -195,7 +197,8 @@ func TestChainExportImportFull(t *testing.T) {
 	}
 
 	nbs := blockstore.NewMemorySync()
-	cs := store.NewChainStore(nbs, nbs, datastore.NewMapDatastore(), filcns.Weight, nil)
+	ds := datastore.NewMapDatastore()
+	cs := store.NewChainStore(nbs, nbs, ds, filcns.Weight, nil)
 	defer cs.Close() //nolint:errcheck
 
 	root, err := cs.Import(context.TODO(), buf)
@@ -212,7 +215,7 @@ func TestChainExportImportFull(t *testing.T) {
 		t.Fatal("imported chain differed from exported chain")
 	}
 
-	sm, err := stmgr.NewStateManager(cs, filcns.NewTipSetExecutor(), nil, filcns.DefaultUpgradeSchedule(), cg.BeaconSchedule())
+	sm, err := stmgr.NewStateManager(cs, consensus.NewTipSetExecutor(filcns.RewardFunc), nil, filcns.DefaultUpgradeSchedule(), cg.BeaconSchedule(), ds, index.DummyMsgIndex)
 	if err != nil {
 		t.Fatal(err)
 	}

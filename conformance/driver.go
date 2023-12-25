@@ -20,7 +20,10 @@ import (
 
 	"github.com/filecoin-project/lotus/blockstore"
 	"github.com/filecoin-project/lotus/chain/actors/builtin"
+	"github.com/filecoin-project/lotus/chain/consensus"
 	"github.com/filecoin-project/lotus/chain/consensus/filcns"
+	"github.com/filecoin-project/lotus/chain/index"
+	"github.com/filecoin-project/lotus/chain/rand"
 	"github.com/filecoin-project/lotus/chain/state"
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	"github.com/filecoin-project/lotus/chain/store"
@@ -87,9 +90,9 @@ type ExecuteTipsetParams struct {
 	ParentEpoch abi.ChainEpoch
 	Tipset      *schema.Tipset
 	ExecEpoch   abi.ChainEpoch
-	// Rand is an optional vm.Rand implementation to use. If nil, the driver
-	// will use a vm.Rand that returns a fixed value for all calls.
-	Rand vm.Rand
+	// Rand is an optional rand.Rand implementation to use. If nil, the driver
+	// will use a rand.Rand that returns a fixed value for all calls.
+	Rand rand.Rand
 	// BaseFee if not nil or zero, will override the basefee of the tipset.
 	BaseFee abi.TokenAmount
 }
@@ -106,8 +109,8 @@ func (d *Driver) ExecuteTipset(bs blockstore.Blockstore, ds ds.Batching, params 
 		syscalls = vm.Syscalls(ffiwrapper.ProofVerifier)
 
 		cs      = store.NewChainStore(bs, bs, ds, filcns.Weight, nil)
-		tse     = filcns.NewTipSetExecutor()
-		sm, err = stmgr.NewStateManager(cs, tse, syscalls, filcns.DefaultUpgradeSchedule(), nil)
+		tse     = consensus.NewTipSetExecutor(filcns.RewardFunc)
+		sm, err = stmgr.NewStateManager(cs, tse, syscalls, filcns.DefaultUpgradeSchedule(), nil, ds, index.DummyMsgIndex)
 	)
 	if err != nil {
 		return nil, err
@@ -123,7 +126,7 @@ func (d *Driver) ExecuteTipset(bs blockstore.Blockstore, ds ds.Batching, params 
 
 	defer cs.Close() //nolint:errcheck
 
-	blocks := make([]filcns.FilecoinBlockMessages, 0, len(tipset.Blocks))
+	blocks := make([]consensus.FilecoinBlockMessages, 0, len(tipset.Blocks))
 	for _, b := range tipset.Blocks {
 		sb := store.BlockMessages{
 			Miner: b.MinerAddr,
@@ -145,7 +148,7 @@ func (d *Driver) ExecuteTipset(bs blockstore.Blockstore, ds ds.Batching, params 
 				sb.BlsMessages = append(sb.BlsMessages, msg)
 			}
 		}
-		blocks = append(blocks, filcns.FilecoinBlockMessages{
+		blocks = append(blocks, consensus.FilecoinBlockMessages{
 			BlockMessages: sb,
 			WinCount:      b.WinCount,
 		})
@@ -198,9 +201,9 @@ type ExecuteMessageParams struct {
 	BaseFee        abi.TokenAmount
 	NetworkVersion network.Version
 
-	// Rand is an optional vm.Rand implementation to use. If nil, the driver
-	// will use a vm.Rand that returns a fixed value for all calls.
-	Rand vm.Rand
+	// Rand is an optional rand.Rand implementation to use. If nil, the driver
+	// will use a rand.Rand that returns a fixed value for all calls.
+	Rand rand.Rand
 
 	// Lookback is the LookbackStateGetter; returns the state tree at a given epoch.
 	Lookback vm.LookbackStateGetter
@@ -265,7 +268,7 @@ func (d *Driver) ExecuteMessage(bs blockstore.Blockstore, params ExecuteMessageP
 			return nil, cid.Undef, err
 		}
 
-		invoker := filcns.NewActorRegistry()
+		invoker := consensus.NewActorRegistry()
 		av, _ := actorstypes.VersionForNetwork(params.NetworkVersion)
 		registry := builtin.MakeRegistryLegacy([]rtt.VMActor{chaos.Actor{}})
 		invoker.Register(av, nil, registry)
@@ -283,7 +286,7 @@ func (d *Driver) ExecuteMessage(bs blockstore.Blockstore, params ExecuteMessageP
 			if err != nil {
 				return nil, cid.Undef, err
 			}
-			invoker := filcns.NewActorRegistry()
+			invoker := consensus.NewActorRegistry()
 			lvm.SetInvoker(invoker)
 			vmi = lvm
 		}
@@ -295,12 +298,12 @@ func (d *Driver) ExecuteMessage(bs blockstore.Blockstore, params ExecuteMessageP
 	}
 
 	var root cid.Cid
-	if d.vmFlush {
+	if lvm, ok := vmi.(*vm.LegacyVM); ok && !d.vmFlush {
+		root, err = lvm.StateTree().(*state.StateTree).Flush(d.ctx)
+	} else {
 		// flush the VM, committing the state tree changes and forcing a
 		// recursive copy from the temporary blockstore to the real blockstore.
 		root, err = vmi.Flush(d.ctx)
-	} else {
-		root, err = vmi.(*vm.LegacyVM).StateTree().(*state.StateTree).Flush(d.ctx)
 	}
 
 	return ret, root, err

@@ -49,10 +49,18 @@ var UpgradeHyperdriveHeight = abi.ChainEpoch(-16)
 var UpgradeChocolateHeight = abi.ChainEpoch(-17)
 var UpgradeOhSnapHeight = abi.ChainEpoch(-18)
 var UpgradeSkyrHeight = abi.ChainEpoch(-19)
+var UpgradeSharkHeight = abi.ChainEpoch(-20)
+var UpgradeHyggeHeight = abi.ChainEpoch(-21)
+var UpgradeLightningHeight = abi.ChainEpoch(-22)
+var UpgradeThunderHeight = abi.ChainEpoch(-23)
 
-const UpgradeSharkHeight = abi.ChainEpoch(-20)
+const UpgradeWatermelonHeight = 50
 
-const UpgradeHyggeHeight = abi.ChainEpoch(99999999999999)
+// This fix upgrade only ran on calibrationnet
+const UpgradeWatermelonFixHeight = -1
+
+// This fix upgrade only ran on calibrationnet
+const UpgradeWatermelonFix2Height = -2
 
 var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
 	0: DrandMainnet,
