@@ -110,14 +110,15 @@ func DefaultFullNode() *FullNode {
 		Fevm: FevmConfig{
 			EnableEthRPC:                 false,
 			EthTxHashMappingLifetimeDays: 0,
-			Events: Events{
-				DisableRealTimeFilterAPI: false,
-				DisableHistoricFilterAPI: false,
-				FilterTTL:                Duration(time.Hour * 24),
-				MaxFilters:               100,
-				MaxFilterResults:         10000,
-				MaxFilterHeightRange:     2880, // conservative limit of one day
-			},
+		},
+		Events: EventsConfig{
+			DisableRealTimeFilterAPI: false,
+			DisableHistoricFilterAPI: false,
+			EnableActorEventsAPI:     false,
+			FilterTTL:                Duration(time.Hour * 24),
+			MaxFilters:               100,
+			MaxFilterResults:         10000,
+			MaxFilterHeightRange:     2880, // conservative limit of one day
 		},
 	}
 }
@@ -238,6 +239,7 @@ func DefaultStorageMiner() *StorageMiner {
 			EnableSealing:       true,
 			EnableSectorStorage: true,
 			EnableMarkets:       false,
+			EnableSectorIndexDB: false,
 		},
 
 		Fees: MinerFeeConfig{
@@ -257,6 +259,8 @@ func DefaultStorageMiner() *StorageMiner {
 			MaxWindowPoStGasFee:    types.MustParseFIL("5"),
 			MaxPublishDealsFee:     types.MustParseFIL("0.05"),
 			MaxMarketBalanceAddFee: types.MustParseFIL("0.007"),
+
+			MaximizeWindowPoStFeeCap: true,
 		},
 
 		Addresses: MinerAddressConfig{
@@ -271,6 +275,13 @@ func DefaultStorageMiner() *StorageMiner {
 			MaxConcurrencyStorageCalls: 100,
 			MaxConcurrentUnseals:       5,
 			GCInterval:                 Duration(1 * time.Minute),
+		},
+		HarmonyDB: HarmonyDB{
+			Hosts:    []string{"127.0.0.1"},
+			Username: "yugabyte",
+			Password: "yugabyte",
+			Database: "yugabyte",
+			Port:     "5433",
 		},
 	}
 
@@ -337,4 +348,38 @@ func DefaultUserRaftConfig() *UserRaftConfig {
 	cfg.BackupsRotate = DefaultBackupsRotate
 
 	return &cfg
+}
+
+func DefaultLotusProvider() *LotusProviderConfig {
+	return &LotusProviderConfig{
+		Subsystems: ProviderSubsystemsConfig{},
+		Fees: LotusProviderFees{
+			DefaultMaxFee:      DefaultDefaultMaxFee,
+			MaxPreCommitGasFee: types.MustParseFIL("0.025"),
+			MaxCommitGasFee:    types.MustParseFIL("0.05"),
+
+			MaxPreCommitBatchGasFee: BatchFeeConfig{
+				Base:      types.MustParseFIL("0"),
+				PerSector: types.MustParseFIL("0.02"),
+			},
+			MaxCommitBatchGasFee: BatchFeeConfig{
+				Base:      types.MustParseFIL("0"),
+				PerSector: types.MustParseFIL("0.03"), // enough for 6 agg and 1nFIL base fee
+			},
+
+			MaxTerminateGasFee:  types.MustParseFIL("0.5"),
+			MaxWindowPoStGasFee: types.MustParseFIL("5"),
+			MaxPublishDealsFee:  types.MustParseFIL("0.05"),
+		},
+		Addresses: LotusProviderAddresses{
+			PreCommitControl: []string{},
+			CommitControl:    []string{},
+			TerminateControl: []string{},
+		},
+		Proving: ProvingConfig{
+			ParallelCheckLimit:    32,
+			PartitionCheckTimeout: Duration(20 * time.Minute),
+			SingleCheckTimeout:    Duration(10 * time.Minute),
+		},
+	}
 }

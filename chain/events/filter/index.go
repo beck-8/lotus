@@ -481,7 +481,7 @@ func (ei *EventIndex) CollectEvents(ctx context.Context, te *TipSetEvents, rever
 }
 
 // PrefillFilter fills a filter's collection of events from the historic index
-func (ei *EventIndex) PrefillFilter(ctx context.Context, f *EventFilter) error {
+func (ei *EventIndex) prefillFilter(ctx context.Context, f *eventFilter, excludeReverted bool) error {
 	clauses := []string{}
 	values := []any{}
 	joins := []string{}
@@ -500,6 +500,11 @@ func (ei *EventIndex) PrefillFilter(ctx context.Context, f *EventFilter) error {
 		}
 	}
 
+	if excludeReverted {
+		clauses = append(clauses, "event.reverted=?")
+		values = append(values, false)
+	}
+
 	if len(f.addresses) > 0 {
 		subclauses := []string{}
 		for _, addr := range f.addresses {
@@ -509,9 +514,9 @@ func (ei *EventIndex) PrefillFilter(ctx context.Context, f *EventFilter) error {
 		clauses = append(clauses, "("+strings.Join(subclauses, " OR ")+")")
 	}
 
-	if len(f.keys) > 0 {
+	if len(f.keysWithCodec) > 0 {
 		join := 0
-		for key, vals := range f.keys {
+		for key, vals := range f.keysWithCodec {
 			if len(vals) > 0 {
 				join++
 				joinAlias := fmt.Sprintf("ee%d", join)
@@ -520,8 +525,8 @@ func (ei *EventIndex) PrefillFilter(ctx context.Context, f *EventFilter) error {
 				values = append(values, key)
 				subclauses := []string{}
 				for _, val := range vals {
-					subclauses = append(subclauses, fmt.Sprintf("%s.value=?", joinAlias))
-					values = append(values, val)
+					subclauses = append(subclauses, fmt.Sprintf("(%s.value=? AND %[1]s.codec=?)", joinAlias))
+					values = append(values, val.Value, val.Codec)
 				}
 				clauses = append(clauses, "("+strings.Join(subclauses, " OR ")+")")
 			}
@@ -552,7 +557,8 @@ func (ei *EventIndex) PrefillFilter(ctx context.Context, f *EventFilter) error {
 		s = s + " WHERE " + strings.Join(clauses, " AND ")
 	}
 
-	s += " ORDER BY event.height DESC"
+	// retain insertion order of event_entry rows with the implicit _rowid_ column
+	s += " ORDER BY event.height DESC, event_entry._rowid_ ASC"
 
 	stmt, err := ei.db.Prepare(s)
 	if err != nil {

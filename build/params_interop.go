@@ -53,8 +53,11 @@ var UpgradeSharkHeight = abi.ChainEpoch(-20)
 var UpgradeHyggeHeight = abi.ChainEpoch(-21)
 var UpgradeLightningHeight = abi.ChainEpoch(-22)
 var UpgradeThunderHeight = abi.ChainEpoch(-23)
+var UpgradeWatermelonHeight = abi.ChainEpoch(-24)
 
-const UpgradeWatermelonHeight = 50
+const UpgradeDragonHeight = 50
+
+const UpgradePhoenixHeight = UpgradeDragonHeight + 100
 
 // This fix upgrade only ran on calibrationnet
 const UpgradeWatermelonFixHeight = -1
@@ -62,8 +65,12 @@ const UpgradeWatermelonFixHeight = -1
 // This fix upgrade only ran on calibrationnet
 const UpgradeWatermelonFix2Height = -2
 
+// This fix upgrade only ran on calibrationnet
+const UpgradeCalibrationDragonFixHeight = -3
+
 var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
-	0: DrandMainnet,
+	0:                    DrandMainnet,
+	UpgradePhoenixHeight: DrandQuicknet,
 }
 
 var SupportedProofTypes = []abi.RegisteredSealProof{
@@ -126,6 +133,8 @@ func init() {
 const BlockDelaySecs = uint64(builtin2.EpochDurationSeconds)
 
 const PropagationDelaySecs = uint64(6)
+
+var EquivocationDelaySecs = uint64(2)
 
 // BootstrapPeerThreshold is the minimum number peers we need to track for a sync worker to start
 const BootstrapPeerThreshold = 2

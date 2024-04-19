@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"time"
@@ -107,6 +107,7 @@ func main() {
 			sealBenchCmd,
 			simpleCmd,
 			importBenchCmd,
+			cliCmd,
 			rpcCmd,
 		},
 	}
@@ -328,7 +329,10 @@ var sealBenchCmd = &cli.Command{
 		}
 
 		var challenge [32]byte
-		rand.Read(challenge[:])
+		_, err = rand.Read(challenge[:])
+		if err != nil {
+			return err
+		}
 
 		beforePost := time.Now()
 
@@ -558,9 +562,7 @@ func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par
 		start := time.Now()
 		log.Infof("[%d] Writing piece into sector...", i)
 
-		r := rand.New(rand.NewSource(100 + int64(i)))
-
-		pi, err := sb.AddPiece(context.TODO(), sid, nil, abi.PaddedPieceSize(sectorSize).Unpadded(), r)
+		pi, err := sb.AddPiece(context.TODO(), sid, nil, abi.PaddedPieceSize(sectorSize).Unpadded(), rand.Reader)
 		if err != nil {
 			return nil, nil, err
 		}

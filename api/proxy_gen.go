@@ -35,11 +35,13 @@ import (
 	apitypes "github.com/filecoin-project/lotus/api/types"
 	builtinactors "github.com/filecoin-project/lotus/chain/actors/builtin"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/verifreg"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/types/ethtypes"
 	"github.com/filecoin-project/lotus/journal/alerting"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/repo/imports"
+	"github.com/filecoin-project/lotus/storage/pipeline/piece"
 	"github.com/filecoin-project/lotus/storage/pipeline/sealiface"
 	"github.com/filecoin-project/lotus/storage/sealer/fsutil"
 	"github.com/filecoin-project/lotus/storage/sealer/sealtasks"
@@ -255,7 +257,7 @@ type FullNodeMethods struct {
 
 	EthChainId func(p0 context.Context) (ethtypes.EthUint64, error) `perm:"read"`
 
-	EthEstimateGas func(p0 context.Context, p1 ethtypes.EthCall) (ethtypes.EthUint64, error) `perm:"read"`
+	EthEstimateGas func(p0 context.Context, p1 jsonrpc.RawParams) (ethtypes.EthUint64, error) `perm:"read"`
 
 	EthFeeHistory func(p0 context.Context, p1 jsonrpc.RawParams) (ethtypes.EthFeeHistory, error) `perm:"read"`
 
@@ -315,6 +317,10 @@ type FullNodeMethods struct {
 
 	EthSyncing func(p0 context.Context) (ethtypes.EthSyncingResult, error) `perm:"read"`
 
+	EthTraceBlock func(p0 context.Context, p1 string) ([]*ethtypes.EthTraceBlock, error) `perm:"read"`
+
+	EthTraceReplayBlockTransactions func(p0 context.Context, p1 string, p2 []string) ([]*ethtypes.EthTraceReplayBlockTransaction, error) `perm:"read"`
+
 	EthUninstallFilter func(p0 context.Context, p1 ethtypes.EthFilterID) (bool, error) `perm:"read"`
 
 	EthUnsubscribe func(p0 context.Context, p1 ethtypes.EthSubscriptionID) (bool, error) `perm:"read"`
@@ -328,6 +334,8 @@ type FullNodeMethods struct {
 	GasEstimateGasPremium func(p0 context.Context, p1 uint64, p2 address.Address, p3 int64, p4 types.TipSetKey) (types.BigInt, error) `perm:"read"`
 
 	GasEstimateMessageGas func(p0 context.Context, p1 *types.Message, p2 *MessageSendSpec, p3 types.TipSetKey) (*types.Message, error) `perm:"read"`
+
+	GetActorEventsRaw func(p0 context.Context, p1 *types.ActorEventFilter) ([]*types.ActorEvent, error) `perm:"read"`
 
 	MarketAddBalance func(p0 context.Context, p1 address.Address, p2 address.Address, p3 types.BigInt) (cid.Cid, error) `perm:"sign"`
 
@@ -479,9 +487,15 @@ type FullNodeMethods struct {
 
 	StateGetActor func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*types.Actor, error) `perm:"read"`
 
+	StateGetAllAllocations func(p0 context.Context, p1 types.TipSetKey) (map[verifregtypes.AllocationId]verifregtypes.Allocation, error) `perm:"read"`
+
+	StateGetAllClaims func(p0 context.Context, p1 types.TipSetKey) (map[verifregtypes.ClaimId]verifregtypes.Claim, error) `perm:"read"`
+
 	StateGetAllocation func(p0 context.Context, p1 address.Address, p2 verifregtypes.AllocationId, p3 types.TipSetKey) (*verifregtypes.Allocation, error) `perm:"read"`
 
 	StateGetAllocationForPendingDeal func(p0 context.Context, p1 abi.DealID, p2 types.TipSetKey) (*verifregtypes.Allocation, error) `perm:"read"`
+
+	StateGetAllocationIdForPendingDeal func(p0 context.Context, p1 abi.DealID, p2 types.TipSetKey) (verifreg.AllocationId, error) `perm:"read"`
 
 	StateGetAllocations func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (map[verifregtypes.AllocationId]verifregtypes.Allocation, error) `perm:"read"`
 
@@ -583,6 +597,8 @@ type FullNodeMethods struct {
 
 	StateWaitMsg func(p0 context.Context, p1 cid.Cid, p2 uint64, p3 abi.ChainEpoch, p4 bool) (*MsgLookup, error) `perm:"read"`
 
+	SubscribeActorEventsRaw func(p0 context.Context, p1 *types.ActorEventFilter) (<-chan *types.ActorEvent, error) `perm:"read"`
+
 	SyncCheckBad func(p0 context.Context, p1 cid.Cid) (string, error) `perm:"read"`
 
 	SyncCheckpoint func(p0 context.Context, p1 types.TipSetKey) error `perm:"admin"`
@@ -645,6 +661,8 @@ type GatewayMethods struct {
 
 	ChainGetBlockMessages func(p0 context.Context, p1 cid.Cid) (*BlockMessages, error) ``
 
+	ChainGetEvents func(p0 context.Context, p1 cid.Cid) ([]types.Event, error) ``
+
 	ChainGetGenesis func(p0 context.Context) (*types.TipSet, error) ``
 
 	ChainGetMessage func(p0 context.Context, p1 cid.Cid) (*types.Message, error) ``
@@ -681,7 +699,7 @@ type GatewayMethods struct {
 
 	EthChainId func(p0 context.Context) (ethtypes.EthUint64, error) ``
 
-	EthEstimateGas func(p0 context.Context, p1 ethtypes.EthCall) (ethtypes.EthUint64, error) ``
+	EthEstimateGas func(p0 context.Context, p1 jsonrpc.RawParams) (ethtypes.EthUint64, error) ``
 
 	EthFeeHistory func(p0 context.Context, p1 jsonrpc.RawParams) (ethtypes.EthFeeHistory, error) ``
 
@@ -737,6 +755,10 @@ type GatewayMethods struct {
 
 	EthSyncing func(p0 context.Context) (ethtypes.EthSyncingResult, error) ``
 
+	EthTraceBlock func(p0 context.Context, p1 string) ([]*ethtypes.EthTraceBlock, error) ``
+
+	EthTraceReplayBlockTransactions func(p0 context.Context, p1 string, p2 []string) ([]*ethtypes.EthTraceReplayBlockTransaction, error) ``
+
 	EthUninstallFilter func(p0 context.Context, p1 ethtypes.EthFilterID) (bool, error) ``
 
 	EthUnsubscribe func(p0 context.Context, p1 ethtypes.EthSubscriptionID) (bool, error) ``
@@ -744,6 +766,8 @@ type GatewayMethods struct {
 	GasEstimateGasPremium func(p0 context.Context, p1 uint64, p2 address.Address, p3 int64, p4 types.TipSetKey) (types.BigInt, error) ``
 
 	GasEstimateMessageGas func(p0 context.Context, p1 *types.Message, p2 *MessageSendSpec, p3 types.TipSetKey) (*types.Message, error) ``
+
+	GetActorEventsRaw func(p0 context.Context, p1 *types.ActorEventFilter) ([]*types.ActorEvent, error) ``
 
 	MinerGetBaseInfo func(p0 context.Context, p1 address.Address, p2 abi.ChainEpoch, p3 types.TipSetKey) (*MiningBaseInfo, error) ``
 
@@ -774,6 +798,16 @@ type GatewayMethods struct {
 	StateDecodeParams func(p0 context.Context, p1 address.Address, p2 abi.MethodNum, p3 []byte, p4 types.TipSetKey) (interface{}, error) ``
 
 	StateGetActor func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*types.Actor, error) ``
+
+	StateGetAllocation func(p0 context.Context, p1 address.Address, p2 verifregtypes.AllocationId, p3 types.TipSetKey) (*verifregtypes.Allocation, error) ``
+
+	StateGetAllocationForPendingDeal func(p0 context.Context, p1 abi.DealID, p2 types.TipSetKey) (*verifregtypes.Allocation, error) ``
+
+	StateGetAllocations func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (map[verifregtypes.AllocationId]verifregtypes.Allocation, error) ``
+
+	StateGetClaim func(p0 context.Context, p1 address.Address, p2 verifregtypes.ClaimId, p3 types.TipSetKey) (*verifregtypes.Claim, error) ``
+
+	StateGetClaims func(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (map[verifregtypes.ClaimId]verifregtypes.Claim, error) ``
 
 	StateListMiners func(p0 context.Context, p1 types.TipSetKey) ([]address.Address, error) ``
 
@@ -809,6 +843,8 @@ type GatewayMethods struct {
 
 	StateWaitMsg func(p0 context.Context, p1 cid.Cid, p2 uint64, p3 abi.ChainEpoch, p4 bool) (*MsgLookup, error) ``
 
+	SubscribeActorEventsRaw func(p0 context.Context, p1 *types.ActorEventFilter) (<-chan *types.ActorEvent, error) ``
+
 	Version func(p0 context.Context) (APIVersion, error) ``
 
 	WalletBalance func(p0 context.Context, p1 address.Address) (types.BigInt, error) ``
@@ -817,6 +853,19 @@ type GatewayMethods struct {
 }
 
 type GatewayStub struct {
+}
+
+type LotusProviderStruct struct {
+	Internal LotusProviderMethods
+}
+
+type LotusProviderMethods struct {
+	Shutdown func(p0 context.Context) error `perm:"admin"`
+
+	Version func(p0 context.Context) (Version, error) `perm:"admin"`
+}
+
+type LotusProviderStub struct {
 }
 
 type NetStruct struct {
@@ -1060,7 +1109,7 @@ type StorageMinerMethods struct {
 
 	SectorAbortUpgrade func(p0 context.Context, p1 abi.SectorNumber) error `perm:"admin"`
 
-	SectorAddPieceToAny func(p0 context.Context, p1 abi.UnpaddedPieceSize, p2 storiface.Data, p3 PieceDealInfo) (SectorOffset, error) `perm:"admin"`
+	SectorAddPieceToAny func(p0 context.Context, p1 abi.UnpaddedPieceSize, p2 storiface.Data, p3 piece.PieceDealInfo) (SectorOffset, error) `perm:"admin"`
 
 	SectorCommitFlush func(p0 context.Context) ([]sealiface.CommitBatchRes, error) `perm:"admin"`
 
@@ -2122,14 +2171,14 @@ func (s *FullNodeStub) EthChainId(p0 context.Context) (ethtypes.EthUint64, error
 	return *new(ethtypes.EthUint64), ErrNotSupported
 }
 
-func (s *FullNodeStruct) EthEstimateGas(p0 context.Context, p1 ethtypes.EthCall) (ethtypes.EthUint64, error) {
+func (s *FullNodeStruct) EthEstimateGas(p0 context.Context, p1 jsonrpc.RawParams) (ethtypes.EthUint64, error) {
 	if s.Internal.EthEstimateGas == nil {
 		return *new(ethtypes.EthUint64), ErrNotSupported
 	}
 	return s.Internal.EthEstimateGas(p0, p1)
 }
 
-func (s *FullNodeStub) EthEstimateGas(p0 context.Context, p1 ethtypes.EthCall) (ethtypes.EthUint64, error) {
+func (s *FullNodeStub) EthEstimateGas(p0 context.Context, p1 jsonrpc.RawParams) (ethtypes.EthUint64, error) {
 	return *new(ethtypes.EthUint64), ErrNotSupported
 }
 
@@ -2452,6 +2501,28 @@ func (s *FullNodeStub) EthSyncing(p0 context.Context) (ethtypes.EthSyncingResult
 	return *new(ethtypes.EthSyncingResult), ErrNotSupported
 }
 
+func (s *FullNodeStruct) EthTraceBlock(p0 context.Context, p1 string) ([]*ethtypes.EthTraceBlock, error) {
+	if s.Internal.EthTraceBlock == nil {
+		return *new([]*ethtypes.EthTraceBlock), ErrNotSupported
+	}
+	return s.Internal.EthTraceBlock(p0, p1)
+}
+
+func (s *FullNodeStub) EthTraceBlock(p0 context.Context, p1 string) ([]*ethtypes.EthTraceBlock, error) {
+	return *new([]*ethtypes.EthTraceBlock), ErrNotSupported
+}
+
+func (s *FullNodeStruct) EthTraceReplayBlockTransactions(p0 context.Context, p1 string, p2 []string) ([]*ethtypes.EthTraceReplayBlockTransaction, error) {
+	if s.Internal.EthTraceReplayBlockTransactions == nil {
+		return *new([]*ethtypes.EthTraceReplayBlockTransaction), ErrNotSupported
+	}
+	return s.Internal.EthTraceReplayBlockTransactions(p0, p1, p2)
+}
+
+func (s *FullNodeStub) EthTraceReplayBlockTransactions(p0 context.Context, p1 string, p2 []string) ([]*ethtypes.EthTraceReplayBlockTransaction, error) {
+	return *new([]*ethtypes.EthTraceReplayBlockTransaction), ErrNotSupported
+}
+
 func (s *FullNodeStruct) EthUninstallFilter(p0 context.Context, p1 ethtypes.EthFilterID) (bool, error) {
 	if s.Internal.EthUninstallFilter == nil {
 		return false, ErrNotSupported
@@ -2527,6 +2598,17 @@ func (s *FullNodeStruct) GasEstimateMessageGas(p0 context.Context, p1 *types.Mes
 
 func (s *FullNodeStub) GasEstimateMessageGas(p0 context.Context, p1 *types.Message, p2 *MessageSendSpec, p3 types.TipSetKey) (*types.Message, error) {
 	return nil, ErrNotSupported
+}
+
+func (s *FullNodeStruct) GetActorEventsRaw(p0 context.Context, p1 *types.ActorEventFilter) ([]*types.ActorEvent, error) {
+	if s.Internal.GetActorEventsRaw == nil {
+		return *new([]*types.ActorEvent), ErrNotSupported
+	}
+	return s.Internal.GetActorEventsRaw(p0, p1)
+}
+
+func (s *FullNodeStub) GetActorEventsRaw(p0 context.Context, p1 *types.ActorEventFilter) ([]*types.ActorEvent, error) {
+	return *new([]*types.ActorEvent), ErrNotSupported
 }
 
 func (s *FullNodeStruct) MarketAddBalance(p0 context.Context, p1 address.Address, p2 address.Address, p3 types.BigInt) (cid.Cid, error) {
@@ -3354,6 +3436,28 @@ func (s *FullNodeStub) StateGetActor(p0 context.Context, p1 address.Address, p2 
 	return nil, ErrNotSupported
 }
 
+func (s *FullNodeStruct) StateGetAllAllocations(p0 context.Context, p1 types.TipSetKey) (map[verifregtypes.AllocationId]verifregtypes.Allocation, error) {
+	if s.Internal.StateGetAllAllocations == nil {
+		return *new(map[verifregtypes.AllocationId]verifregtypes.Allocation), ErrNotSupported
+	}
+	return s.Internal.StateGetAllAllocations(p0, p1)
+}
+
+func (s *FullNodeStub) StateGetAllAllocations(p0 context.Context, p1 types.TipSetKey) (map[verifregtypes.AllocationId]verifregtypes.Allocation, error) {
+	return *new(map[verifregtypes.AllocationId]verifregtypes.Allocation), ErrNotSupported
+}
+
+func (s *FullNodeStruct) StateGetAllClaims(p0 context.Context, p1 types.TipSetKey) (map[verifregtypes.ClaimId]verifregtypes.Claim, error) {
+	if s.Internal.StateGetAllClaims == nil {
+		return *new(map[verifregtypes.ClaimId]verifregtypes.Claim), ErrNotSupported
+	}
+	return s.Internal.StateGetAllClaims(p0, p1)
+}
+
+func (s *FullNodeStub) StateGetAllClaims(p0 context.Context, p1 types.TipSetKey) (map[verifregtypes.ClaimId]verifregtypes.Claim, error) {
+	return *new(map[verifregtypes.ClaimId]verifregtypes.Claim), ErrNotSupported
+}
+
 func (s *FullNodeStruct) StateGetAllocation(p0 context.Context, p1 address.Address, p2 verifregtypes.AllocationId, p3 types.TipSetKey) (*verifregtypes.Allocation, error) {
 	if s.Internal.StateGetAllocation == nil {
 		return nil, ErrNotSupported
@@ -3374,6 +3478,17 @@ func (s *FullNodeStruct) StateGetAllocationForPendingDeal(p0 context.Context, p1
 
 func (s *FullNodeStub) StateGetAllocationForPendingDeal(p0 context.Context, p1 abi.DealID, p2 types.TipSetKey) (*verifregtypes.Allocation, error) {
 	return nil, ErrNotSupported
+}
+
+func (s *FullNodeStruct) StateGetAllocationIdForPendingDeal(p0 context.Context, p1 abi.DealID, p2 types.TipSetKey) (verifreg.AllocationId, error) {
+	if s.Internal.StateGetAllocationIdForPendingDeal == nil {
+		return *new(verifreg.AllocationId), ErrNotSupported
+	}
+	return s.Internal.StateGetAllocationIdForPendingDeal(p0, p1, p2)
+}
+
+func (s *FullNodeStub) StateGetAllocationIdForPendingDeal(p0 context.Context, p1 abi.DealID, p2 types.TipSetKey) (verifreg.AllocationId, error) {
+	return *new(verifreg.AllocationId), ErrNotSupported
 }
 
 func (s *FullNodeStruct) StateGetAllocations(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (map[verifregtypes.AllocationId]verifregtypes.Allocation, error) {
@@ -3926,6 +4041,17 @@ func (s *FullNodeStub) StateWaitMsg(p0 context.Context, p1 cid.Cid, p2 uint64, p
 	return nil, ErrNotSupported
 }
 
+func (s *FullNodeStruct) SubscribeActorEventsRaw(p0 context.Context, p1 *types.ActorEventFilter) (<-chan *types.ActorEvent, error) {
+	if s.Internal.SubscribeActorEventsRaw == nil {
+		return nil, ErrNotSupported
+	}
+	return s.Internal.SubscribeActorEventsRaw(p0, p1)
+}
+
+func (s *FullNodeStub) SubscribeActorEventsRaw(p0 context.Context, p1 *types.ActorEventFilter) (<-chan *types.ActorEvent, error) {
+	return nil, ErrNotSupported
+}
+
 func (s *FullNodeStruct) SyncCheckBad(p0 context.Context, p1 cid.Cid) (string, error) {
 	if s.Internal.SyncCheckBad == nil {
 		return "", ErrNotSupported
@@ -4201,6 +4327,17 @@ func (s *GatewayStub) ChainGetBlockMessages(p0 context.Context, p1 cid.Cid) (*Bl
 	return nil, ErrNotSupported
 }
 
+func (s *GatewayStruct) ChainGetEvents(p0 context.Context, p1 cid.Cid) ([]types.Event, error) {
+	if s.Internal.ChainGetEvents == nil {
+		return *new([]types.Event), ErrNotSupported
+	}
+	return s.Internal.ChainGetEvents(p0, p1)
+}
+
+func (s *GatewayStub) ChainGetEvents(p0 context.Context, p1 cid.Cid) ([]types.Event, error) {
+	return *new([]types.Event), ErrNotSupported
+}
+
 func (s *GatewayStruct) ChainGetGenesis(p0 context.Context) (*types.TipSet, error) {
 	if s.Internal.ChainGetGenesis == nil {
 		return nil, ErrNotSupported
@@ -4399,14 +4536,14 @@ func (s *GatewayStub) EthChainId(p0 context.Context) (ethtypes.EthUint64, error)
 	return *new(ethtypes.EthUint64), ErrNotSupported
 }
 
-func (s *GatewayStruct) EthEstimateGas(p0 context.Context, p1 ethtypes.EthCall) (ethtypes.EthUint64, error) {
+func (s *GatewayStruct) EthEstimateGas(p0 context.Context, p1 jsonrpc.RawParams) (ethtypes.EthUint64, error) {
 	if s.Internal.EthEstimateGas == nil {
 		return *new(ethtypes.EthUint64), ErrNotSupported
 	}
 	return s.Internal.EthEstimateGas(p0, p1)
 }
 
-func (s *GatewayStub) EthEstimateGas(p0 context.Context, p1 ethtypes.EthCall) (ethtypes.EthUint64, error) {
+func (s *GatewayStub) EthEstimateGas(p0 context.Context, p1 jsonrpc.RawParams) (ethtypes.EthUint64, error) {
 	return *new(ethtypes.EthUint64), ErrNotSupported
 }
 
@@ -4707,6 +4844,28 @@ func (s *GatewayStub) EthSyncing(p0 context.Context) (ethtypes.EthSyncingResult,
 	return *new(ethtypes.EthSyncingResult), ErrNotSupported
 }
 
+func (s *GatewayStruct) EthTraceBlock(p0 context.Context, p1 string) ([]*ethtypes.EthTraceBlock, error) {
+	if s.Internal.EthTraceBlock == nil {
+		return *new([]*ethtypes.EthTraceBlock), ErrNotSupported
+	}
+	return s.Internal.EthTraceBlock(p0, p1)
+}
+
+func (s *GatewayStub) EthTraceBlock(p0 context.Context, p1 string) ([]*ethtypes.EthTraceBlock, error) {
+	return *new([]*ethtypes.EthTraceBlock), ErrNotSupported
+}
+
+func (s *GatewayStruct) EthTraceReplayBlockTransactions(p0 context.Context, p1 string, p2 []string) ([]*ethtypes.EthTraceReplayBlockTransaction, error) {
+	if s.Internal.EthTraceReplayBlockTransactions == nil {
+		return *new([]*ethtypes.EthTraceReplayBlockTransaction), ErrNotSupported
+	}
+	return s.Internal.EthTraceReplayBlockTransactions(p0, p1, p2)
+}
+
+func (s *GatewayStub) EthTraceReplayBlockTransactions(p0 context.Context, p1 string, p2 []string) ([]*ethtypes.EthTraceReplayBlockTransaction, error) {
+	return *new([]*ethtypes.EthTraceReplayBlockTransaction), ErrNotSupported
+}
+
 func (s *GatewayStruct) EthUninstallFilter(p0 context.Context, p1 ethtypes.EthFilterID) (bool, error) {
 	if s.Internal.EthUninstallFilter == nil {
 		return false, ErrNotSupported
@@ -4749,6 +4908,17 @@ func (s *GatewayStruct) GasEstimateMessageGas(p0 context.Context, p1 *types.Mess
 
 func (s *GatewayStub) GasEstimateMessageGas(p0 context.Context, p1 *types.Message, p2 *MessageSendSpec, p3 types.TipSetKey) (*types.Message, error) {
 	return nil, ErrNotSupported
+}
+
+func (s *GatewayStruct) GetActorEventsRaw(p0 context.Context, p1 *types.ActorEventFilter) ([]*types.ActorEvent, error) {
+	if s.Internal.GetActorEventsRaw == nil {
+		return *new([]*types.ActorEvent), ErrNotSupported
+	}
+	return s.Internal.GetActorEventsRaw(p0, p1)
+}
+
+func (s *GatewayStub) GetActorEventsRaw(p0 context.Context, p1 *types.ActorEventFilter) ([]*types.ActorEvent, error) {
+	return *new([]*types.ActorEvent), ErrNotSupported
 }
 
 func (s *GatewayStruct) MinerGetBaseInfo(p0 context.Context, p1 address.Address, p2 abi.ChainEpoch, p3 types.TipSetKey) (*MiningBaseInfo, error) {
@@ -4914,6 +5084,61 @@ func (s *GatewayStruct) StateGetActor(p0 context.Context, p1 address.Address, p2
 
 func (s *GatewayStub) StateGetActor(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (*types.Actor, error) {
 	return nil, ErrNotSupported
+}
+
+func (s *GatewayStruct) StateGetAllocation(p0 context.Context, p1 address.Address, p2 verifregtypes.AllocationId, p3 types.TipSetKey) (*verifregtypes.Allocation, error) {
+	if s.Internal.StateGetAllocation == nil {
+		return nil, ErrNotSupported
+	}
+	return s.Internal.StateGetAllocation(p0, p1, p2, p3)
+}
+
+func (s *GatewayStub) StateGetAllocation(p0 context.Context, p1 address.Address, p2 verifregtypes.AllocationId, p3 types.TipSetKey) (*verifregtypes.Allocation, error) {
+	return nil, ErrNotSupported
+}
+
+func (s *GatewayStruct) StateGetAllocationForPendingDeal(p0 context.Context, p1 abi.DealID, p2 types.TipSetKey) (*verifregtypes.Allocation, error) {
+	if s.Internal.StateGetAllocationForPendingDeal == nil {
+		return nil, ErrNotSupported
+	}
+	return s.Internal.StateGetAllocationForPendingDeal(p0, p1, p2)
+}
+
+func (s *GatewayStub) StateGetAllocationForPendingDeal(p0 context.Context, p1 abi.DealID, p2 types.TipSetKey) (*verifregtypes.Allocation, error) {
+	return nil, ErrNotSupported
+}
+
+func (s *GatewayStruct) StateGetAllocations(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (map[verifregtypes.AllocationId]verifregtypes.Allocation, error) {
+	if s.Internal.StateGetAllocations == nil {
+		return *new(map[verifregtypes.AllocationId]verifregtypes.Allocation), ErrNotSupported
+	}
+	return s.Internal.StateGetAllocations(p0, p1, p2)
+}
+
+func (s *GatewayStub) StateGetAllocations(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (map[verifregtypes.AllocationId]verifregtypes.Allocation, error) {
+	return *new(map[verifregtypes.AllocationId]verifregtypes.Allocation), ErrNotSupported
+}
+
+func (s *GatewayStruct) StateGetClaim(p0 context.Context, p1 address.Address, p2 verifregtypes.ClaimId, p3 types.TipSetKey) (*verifregtypes.Claim, error) {
+	if s.Internal.StateGetClaim == nil {
+		return nil, ErrNotSupported
+	}
+	return s.Internal.StateGetClaim(p0, p1, p2, p3)
+}
+
+func (s *GatewayStub) StateGetClaim(p0 context.Context, p1 address.Address, p2 verifregtypes.ClaimId, p3 types.TipSetKey) (*verifregtypes.Claim, error) {
+	return nil, ErrNotSupported
+}
+
+func (s *GatewayStruct) StateGetClaims(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (map[verifregtypes.ClaimId]verifregtypes.Claim, error) {
+	if s.Internal.StateGetClaims == nil {
+		return *new(map[verifregtypes.ClaimId]verifregtypes.Claim), ErrNotSupported
+	}
+	return s.Internal.StateGetClaims(p0, p1, p2)
+}
+
+func (s *GatewayStub) StateGetClaims(p0 context.Context, p1 address.Address, p2 types.TipSetKey) (map[verifregtypes.ClaimId]verifregtypes.Claim, error) {
+	return *new(map[verifregtypes.ClaimId]verifregtypes.Claim), ErrNotSupported
 }
 
 func (s *GatewayStruct) StateListMiners(p0 context.Context, p1 types.TipSetKey) ([]address.Address, error) {
@@ -5103,6 +5328,17 @@ func (s *GatewayStub) StateWaitMsg(p0 context.Context, p1 cid.Cid, p2 uint64, p3
 	return nil, ErrNotSupported
 }
 
+func (s *GatewayStruct) SubscribeActorEventsRaw(p0 context.Context, p1 *types.ActorEventFilter) (<-chan *types.ActorEvent, error) {
+	if s.Internal.SubscribeActorEventsRaw == nil {
+		return nil, ErrNotSupported
+	}
+	return s.Internal.SubscribeActorEventsRaw(p0, p1)
+}
+
+func (s *GatewayStub) SubscribeActorEventsRaw(p0 context.Context, p1 *types.ActorEventFilter) (<-chan *types.ActorEvent, error) {
+	return nil, ErrNotSupported
+}
+
 func (s *GatewayStruct) Version(p0 context.Context) (APIVersion, error) {
 	if s.Internal.Version == nil {
 		return *new(APIVersion), ErrNotSupported
@@ -5134,6 +5370,28 @@ func (s *GatewayStruct) Web3ClientVersion(p0 context.Context) (string, error) {
 
 func (s *GatewayStub) Web3ClientVersion(p0 context.Context) (string, error) {
 	return "", ErrNotSupported
+}
+
+func (s *LotusProviderStruct) Shutdown(p0 context.Context) error {
+	if s.Internal.Shutdown == nil {
+		return ErrNotSupported
+	}
+	return s.Internal.Shutdown(p0)
+}
+
+func (s *LotusProviderStub) Shutdown(p0 context.Context) error {
+	return ErrNotSupported
+}
+
+func (s *LotusProviderStruct) Version(p0 context.Context) (Version, error) {
+	if s.Internal.Version == nil {
+		return *new(Version), ErrNotSupported
+	}
+	return s.Internal.Version(p0)
+}
+
+func (s *LotusProviderStub) Version(p0 context.Context) (Version, error) {
+	return *new(Version), ErrNotSupported
 }
 
 func (s *NetStruct) ID(p0 context.Context) (peer.ID, error) {
@@ -6313,14 +6571,14 @@ func (s *StorageMinerStub) SectorAbortUpgrade(p0 context.Context, p1 abi.SectorN
 	return ErrNotSupported
 }
 
-func (s *StorageMinerStruct) SectorAddPieceToAny(p0 context.Context, p1 abi.UnpaddedPieceSize, p2 storiface.Data, p3 PieceDealInfo) (SectorOffset, error) {
+func (s *StorageMinerStruct) SectorAddPieceToAny(p0 context.Context, p1 abi.UnpaddedPieceSize, p2 storiface.Data, p3 piece.PieceDealInfo) (SectorOffset, error) {
 	if s.Internal.SectorAddPieceToAny == nil {
 		return *new(SectorOffset), ErrNotSupported
 	}
 	return s.Internal.SectorAddPieceToAny(p0, p1, p2, p3)
 }
 
-func (s *StorageMinerStub) SectorAddPieceToAny(p0 context.Context, p1 abi.UnpaddedPieceSize, p2 storiface.Data, p3 PieceDealInfo) (SectorOffset, error) {
+func (s *StorageMinerStub) SectorAddPieceToAny(p0 context.Context, p1 abi.UnpaddedPieceSize, p2 storiface.Data, p3 piece.PieceDealInfo) (SectorOffset, error) {
 	return *new(SectorOffset), ErrNotSupported
 }
 
@@ -7364,6 +7622,7 @@ var _ CommonNet = new(CommonNetStruct)
 var _ EthSubscriber = new(EthSubscriberStruct)
 var _ FullNode = new(FullNodeStruct)
 var _ Gateway = new(GatewayStruct)
+var _ LotusProvider = new(LotusProviderStruct)
 var _ Net = new(NetStruct)
 var _ Signable = new(SignableStruct)
 var _ StorageMiner = new(StorageMinerStruct)
