@@ -426,23 +426,25 @@ var filplusListClaimsCmd = &cli.Command{
 		startEpoch := cctx.Int64("start-epoch")
 		endEpoch := cctx.Int64("end-epoch")
 
-		providerAddr, err := address.NewFromString(cctx.Args().Get(0))
-		if err != nil {
-			return err
-		}
+		if cctx.NArg() == 1 {
+			providerAddr, err := address.NewFromString(cctx.Args().Get(0))
+			if err != nil {
+				return err
+			}
 
-		providerIdAddr, err := api.StateLookupID(ctx, providerAddr, types.EmptyTSK)
-		if err != nil {
-			return err
-		}
+			providerIdAddr, err := api.StateLookupID(ctx, providerAddr, types.EmptyTSK)
+			if err != nil {
+				return err
+			}
 
-		sectors, err := api.StateMinerActiveSectors(ctx, providerIdAddr, types.EmptyTSK)
-		if err != nil {
-			return err
-		}
-		for _, s := range sectors {
-			if int64(s.Activation) >= startEpoch && int64(s.Expiration) <= endEpoch {
-				sectorIDs[s.SectorNumber] = true
+			sectors, err := api.StateMinerActiveSectors(ctx, providerIdAddr, types.EmptyTSK)
+			if err != nil {
+				return err
+			}
+			for _, s := range sectors {
+				if int64(s.Activation) >= startEpoch && int64(s.Expiration) <= endEpoch {
+					sectorIDs[s.SectorNumber] = true
+				}
 			}
 		}
 
