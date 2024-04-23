@@ -330,7 +330,7 @@ var filplusListAllocationsCmd = &cli.Command{
 				tablewriter.Col(pieceSize),
 				tablewriter.Col(tMin),
 				tablewriter.Col(tMax),
-				tablewriter.NewLineCol(expr))
+				tablewriter.Col(expr))
 			// populate it with content
 			for _, alloc := range allocs {
 				tw.Write(alloc)
@@ -399,6 +399,16 @@ var filplusListClaimsCmd = &cli.Command{
 			Usage: "output results in json format",
 			Value: false,
 		},
+		&cli.Int64Flag{
+			Name:  "start-epoch",
+			Usage: "output results in json format",
+			Value: 0,
+		},
+		&cli.Int64Flag{
+			Name:  "end-epoch",
+			Usage: "output results in json format",
+			Value: 99999999,
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		if cctx.NArg() > 1 {
@@ -411,6 +421,30 @@ var filplusListClaimsCmd = &cli.Command{
 		}
 		defer closer()
 		ctx := ReqContext(cctx)
+
+		sectorIDs := make(map[abi.SectorNumber]bool)
+		startEpoch := cctx.Int64("start-epoch")
+		endEpoch := cctx.Int64("end-epoch")
+
+		providerAddr, err := address.NewFromString(cctx.Args().Get(0))
+		if err != nil {
+			return err
+		}
+
+		providerIdAddr, err := api.StateLookupID(ctx, providerAddr, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+
+		sectors, err := api.StateMinerActiveSectors(ctx, providerIdAddr, types.EmptyTSK)
+		if err != nil {
+			return err
+		}
+		for _, s := range sectors {
+			if int64(s.Activation) >= startEpoch && int64(s.Expiration) <= endEpoch {
+				sectorIDs[s.SectorNumber] = true
+			}
+		}
 
 		writeOut := func(tsHeight abi.ChainEpoch, claims map[verifreg.ClaimId]verifreg.Claim, json, expired bool) error {
 			// Map Keys. Corresponds to the standard tablewriter output
@@ -452,7 +486,9 @@ var filplusListClaimsCmd = &cli.Command{
 						tStart:   val.TermStart,
 						sector:   val.Sector,
 					}
-					claimList = append(claimList, claim)
+					if sectorIDs[val.Sector] {
+						claimList = append(claimList, claim)
+					}
 				}
 			}
 
@@ -479,7 +515,7 @@ var filplusListClaimsCmd = &cli.Command{
 				tablewriter.Col(tMin),
 				tablewriter.Col(tMax),
 				tablewriter.Col(tStart),
-				tablewriter.NewLineCol(sector))
+				tablewriter.Col(sector))
 			// populate it with content
 			for _, alloc := range claimList {
 
