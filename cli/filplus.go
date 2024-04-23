@@ -401,12 +401,12 @@ var filplusListClaimsCmd = &cli.Command{
 		},
 		&cli.Int64Flag{
 			Name:  "start-epoch",
-			Usage: "output results in json format",
+			Usage: "sectors start epoch",
 			Value: 0,
 		},
 		&cli.Int64Flag{
 			Name:  "end-epoch",
-			Usage: "output results in json format",
+			Usage: "sectors end epoch",
 			Value: 99999999,
 		},
 	},
@@ -442,7 +442,7 @@ var filplusListClaimsCmd = &cli.Command{
 				return err
 			}
 			for _, s := range sectors {
-				if int64(s.Activation) >= startEpoch && int64(s.Expiration) <= endEpoch {
+				if int64(s.Expiration) >= startEpoch && int64(s.Expiration) <= endEpoch {
 					sectorIDs[s.SectorNumber] = true
 				}
 			}
