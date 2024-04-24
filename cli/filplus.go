@@ -13,7 +13,6 @@ import (
 	cbor "github.com/ipfs/go-ipld-cbor"
 	"github.com/manifoldco/promptui"
 	"github.com/urfave/cli/v2"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
@@ -1137,26 +1136,27 @@ If the client id different then claim can be extended up to maximum 5 years from
 		if err != nil {
 			return err
 		}
+		fmt.Println("msgs len:", len(smsgs))
+		// // wait for msgs to get mined into a block
+		// eg := errgroup.Group{}
+		// eg.SetLimit(10)
+		// for _, msg := range smsgs {
+		// 	msg := msg
+		// 	eg.Go(func() error {
+		// 		wait, err := api.StateWaitMsg(ctx, msg.Cid(), uint64(cctx.Int("confidence")), 2000, true)
+		// 		if err != nil {
+		// 			return xerrors.Errorf("timeout waiting for message to land on chain %s", wait.Message)
 
-		// wait for msgs to get mined into a block
-		eg := errgroup.Group{}
-		eg.SetLimit(10)
-		for _, msg := range smsgs {
-			msg := msg
-			eg.Go(func() error {
-				wait, err := api.StateWaitMsg(ctx, msg.Cid(), uint64(cctx.Int("confidence")), 2000, true)
-				if err != nil {
-					return xerrors.Errorf("timeout waiting for message to land on chain %s", wait.Message)
+		// 		}
 
-				}
-
-				if wait.Receipt.ExitCode.IsError() {
-					return xerrors.Errorf("failed to execute message %s: %s", wait.Message, wait.Receipt.ExitCode)
-				}
-				return nil
-			})
-		}
-		return eg.Wait()
+		// 		if wait.Receipt.ExitCode.IsError() {
+		// 			return xerrors.Errorf("failed to execute message %s: %s", wait.Message, wait.Receipt.ExitCode)
+		// 		}
+		// 		return nil
+		// 	})
+		// }
+		// return eg.Wait()
+		return nil
 	},
 }
 
@@ -1328,6 +1328,7 @@ func CreateExtendClaimMsg(ctx context.Context, api api.FullNode, pcm map[verifre
 	var msgs []*types.Message
 
 	if len(terms) > 0 {
+		fmt.Println("terms message:", len(terms))
 		// Batch in 500 to avoid running out of gas
 		for i := 0; i < len(terms); i += batchSize {
 			batchEnd := i + batchSize
@@ -1354,6 +1355,7 @@ func CreateExtendClaimMsg(ctx context.Context, api api.FullNode, pcm map[verifre
 	}
 
 	if len(newClaims) > 0 {
+		fmt.Println("newClaims message:", len(newClaims))
 		if !assumeYes {
 			out := fmt.Sprintf("Some of the specified allocation have a different client address and will require %d Datacap to extend. Proceed? Yes [Y/y] / No [N/n], Ctrl+C (^C) to exit", rDataCap.Int)
 			validate := func(input string) error {
