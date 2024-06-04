@@ -149,6 +149,12 @@ var filplusVerifyClientCmd = &cli.Command{
 var filplusListNotariesCmd = &cli.Command{
 	Name:  "list-notaries",
 	Usage: "list all notaries",
+	Flags: []cli.Flag{
+		&cli.Int64Flag{
+			Name:  "epoch",
+			Usage: "view data at a specified height",
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		if cctx.NArg() != 0 {
 			return IncorrectNumArgs(cctx)
@@ -161,7 +167,16 @@ var filplusListNotariesCmd = &cli.Command{
 		defer closer()
 		ctx := ReqContext(cctx)
 
-		act, err := api.StateGetActor(ctx, verifreg.Address, types.EmptyTSK)
+		tsk := types.EmptyTSK
+		if epoch := cctx.Int64("epoch"); epoch != 0 {
+			ts, err := api.ChainGetTipSetByHeight(ctx, abi.ChainEpoch(epoch), types.EmptyTSK)
+			if err != nil {
+				return err
+			}
+			tsk = ts.Key()
+		}
+
+		act, err := api.StateGetActor(ctx, verifreg.Address, tsk)
 		if err != nil {
 			return err
 		}
@@ -173,16 +188,29 @@ var filplusListNotariesCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		return st.ForEachVerifier(func(addr address.Address, dcap abi.StoragePower) error {
+		sum := big.NewInt(0)
+
+		st.ForEachVerifier(func(addr address.Address, dcap abi.StoragePower) error {
 			_, err := fmt.Printf("%s: %s\n", addr, dcap)
+			sum = big.Add(sum, dcap)
 			return err
 		})
+
+		fmt.Println(big.Div(sum, big.NewInt(1<<40)), "TiB")
+		fmt.Println(sum)
+		return nil
 	},
 }
 
 var filplusListClientsCmd = &cli.Command{
 	Name:  "list-clients",
 	Usage: "list all verified clients",
+	Flags: []cli.Flag{
+		&cli.Int64Flag{
+			Name:  "epoch",
+			Usage: "view data at a specified height",
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		if cctx.NArg() != 0 {
 			return IncorrectNumArgs(cctx)
@@ -223,7 +251,17 @@ var filplusListClientsCmd = &cli.Command{
 				return err
 			})
 		}
-		act, err := api.StateGetActor(ctx, datacap.Address, types.EmptyTSK)
+
+		tsk := types.EmptyTSK
+		if epoch := cctx.Int64("epoch"); epoch != 0 {
+			ts, err := api.ChainGetTipSetByHeight(ctx, abi.ChainEpoch(epoch), types.EmptyTSK)
+			if err != nil {
+				return err
+			}
+			tsk = ts.Key()
+		}
+
+		act, err := api.StateGetActor(ctx, datacap.Address, tsk)
 		if err != nil {
 			return err
 		}
@@ -232,10 +270,17 @@ var filplusListClientsCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		return st.ForEachClient(func(addr address.Address, dcap abi.StoragePower) error {
+		sum := big.NewInt(0)
+
+		st.ForEachClient(func(addr address.Address, dcap abi.StoragePower) error {
 			_, err := fmt.Printf("%s: %s\n", addr, dcap)
+			sum = big.Add(sum, dcap)
 			return err
 		})
+
+		fmt.Println(big.Div(sum, big.NewInt(1<<40)), "TiB")
+		fmt.Println(sum)
+		return nil
 	},
 }
 
