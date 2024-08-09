@@ -85,54 +85,6 @@ your node if metadata log is disabled`,
 			Comment: ``,
 		},
 	},
-	"Client": {
-		{
-			Name: "UseIpfs",
-			Type: "bool",
-
-			Comment: ``,
-		},
-		{
-			Name: "IpfsOnlineMode",
-			Type: "bool",
-
-			Comment: ``,
-		},
-		{
-			Name: "IpfsMAddr",
-			Type: "string",
-
-			Comment: ``,
-		},
-		{
-			Name: "IpfsUseForRetrieval",
-			Type: "bool",
-
-			Comment: ``,
-		},
-		{
-			Name: "SimultaneousTransfersForStorage",
-			Type: "uint64",
-
-			Comment: `The maximum number of simultaneous data transfers between the client
-and storage providers for storage deals`,
-		},
-		{
-			Name: "SimultaneousTransfersForRetrieval",
-			Type: "uint64",
-
-			Comment: `The maximum number of simultaneous data transfers between the client
-and storage providers for retrieval deals`,
-		},
-		{
-			Name: "OffChainRetrieval",
-			Type: "bool",
-
-			Comment: `Require that retrievals perform no on-chain operations. Paid retrievals
-without existing payment channels with available funds will fail instead
-of automatically performing on-chain operations.`,
-		},
-	},
 	"Common": {
 		{
 			Name: "API",
@@ -165,196 +117,12 @@ of automatically performing on-chain operations.`,
 			Comment: ``,
 		},
 	},
-	"DAGStoreConfig": {
-		{
-			Name: "RootDir",
-			Type: "string",
-
-			Comment: `Path to the dagstore root directory. This directory contains three
-subdirectories, which can be symlinked to alternative locations if
-need be:
-- ./transients: caches unsealed deals that have been fetched from the
-storage subsystem for serving retrievals.
-- ./indices: stores shard indices.
-- ./datastore: holds the KV store tracking the state of every shard
-known to the DAG store.
-Default value: <LOTUS_MARKETS_PATH>/dagstore (split deployment) or
-<LOTUS_MINER_PATH>/dagstore (monolith deployment)`,
-		},
-		{
-			Name: "MaxConcurrentIndex",
-			Type: "int",
-
-			Comment: `The maximum amount of indexing jobs that can run simultaneously.
-0 means unlimited.
-Default value: 5.`,
-		},
-		{
-			Name: "MaxConcurrentReadyFetches",
-			Type: "int",
-
-			Comment: `The maximum amount of unsealed deals that can be fetched simultaneously
-from the storage subsystem. 0 means unlimited.
-Default value: 0 (unlimited).`,
-		},
-		{
-			Name: "MaxConcurrentUnseals",
-			Type: "int",
-
-			Comment: `The maximum amount of unseals that can be processed simultaneously
-from the storage subsystem. 0 means unlimited.
-Default value: 0 (unlimited).`,
-		},
-		{
-			Name: "MaxConcurrencyStorageCalls",
-			Type: "int",
-
-			Comment: `The maximum number of simultaneous inflight API calls to the storage
-subsystem.
-Default value: 100.`,
-		},
-		{
-			Name: "GCInterval",
-			Type: "Duration",
-
-			Comment: `The time between calls to periodic dagstore GC, in time.Duration string
-representation, e.g. 1m, 5m, 1h.
-Default value: 1 minute.`,
-		},
-	},
 	"DealmakingConfig": {
-		{
-			Name: "ConsiderOnlineStorageDeals",
-			Type: "bool",
-
-			Comment: `When enabled, the miner can accept online deals`,
-		},
-		{
-			Name: "ConsiderOfflineStorageDeals",
-			Type: "bool",
-
-			Comment: `When enabled, the miner can accept offline deals`,
-		},
-		{
-			Name: "ConsiderOnlineRetrievalDeals",
-			Type: "bool",
-
-			Comment: `When enabled, the miner can accept retrieval deals`,
-		},
-		{
-			Name: "ConsiderOfflineRetrievalDeals",
-			Type: "bool",
-
-			Comment: `When enabled, the miner can accept offline retrieval deals`,
-		},
-		{
-			Name: "ConsiderVerifiedStorageDeals",
-			Type: "bool",
-
-			Comment: `When enabled, the miner can accept verified deals`,
-		},
-		{
-			Name: "ConsiderUnverifiedStorageDeals",
-			Type: "bool",
-
-			Comment: `When enabled, the miner can accept unverified deals`,
-		},
-		{
-			Name: "PieceCidBlocklist",
-			Type: "[]cid.Cid",
-
-			Comment: `A list of Data CIDs to reject when making deals`,
-		},
-		{
-			Name: "ExpectedSealDuration",
-			Type: "Duration",
-
-			Comment: `Maximum expected amount of time getting the deal into a sealed sector will take
-This includes the time the deal will need to get transferred and published
-before being assigned to a sector`,
-		},
-		{
-			Name: "MaxDealStartDelay",
-			Type: "Duration",
-
-			Comment: `Maximum amount of time proposed deal StartEpoch can be in future`,
-		},
-		{
-			Name: "PublishMsgPeriod",
-			Type: "Duration",
-
-			Comment: `When a deal is ready to publish, the amount of time to wait for more
-deals to be ready to publish before publishing them all as a batch`,
-		},
-		{
-			Name: "MaxDealsPerPublishMsg",
-			Type: "uint64",
-
-			Comment: `The maximum number of deals to include in a single PublishStorageDeals
-message`,
-		},
-		{
-			Name: "MaxProviderCollateralMultiplier",
-			Type: "uint64",
-
-			Comment: `The maximum collateral that the provider will put up against a deal,
-as a multiplier of the minimum collateral bound`,
-		},
-		{
-			Name: "MaxStagingDealsBytes",
-			Type: "int64",
-
-			Comment: `The maximum allowed disk usage size in bytes of staging deals not yet
-passed to the sealing node by the markets service. 0 is unlimited.`,
-		},
-		{
-			Name: "SimultaneousTransfersForStorage",
-			Type: "uint64",
-
-			Comment: `The maximum number of parallel online data transfers for storage deals`,
-		},
-		{
-			Name: "SimultaneousTransfersForStoragePerClient",
-			Type: "uint64",
-
-			Comment: `The maximum number of simultaneous data transfers from any single client
-for storage deals.
-Unset by default (0), and values higher than SimultaneousTransfersForStorage
-will have no effect; i.e. the total number of simultaneous data transfers
-across all storage clients is bound by SimultaneousTransfersForStorage
-regardless of this number.`,
-		},
-		{
-			Name: "SimultaneousTransfersForRetrieval",
-			Type: "uint64",
-
-			Comment: `The maximum number of parallel online data transfers for retrieval deals`,
-		},
 		{
 			Name: "StartEpochSealingBuffer",
 			Type: "uint64",
 
 			Comment: `Minimum start epoch buffer to give time for sealing of sector with deal.`,
-		},
-		{
-			Name: "Filter",
-			Type: "string",
-
-			Comment: `A command used for fine-grained evaluation of storage deals
-see https://lotus.filecoin.io/storage-providers/advanced-configurations/market/#using-filters-for-fine-grained-storage-and-retrieval-deal-acceptance for more details`,
-		},
-		{
-			Name: "RetrievalFilter",
-			Type: "string",
-
-			Comment: `A command used for fine-grained evaluation of retrieval deals
-see https://lotus.filecoin.io/storage-providers/advanced-configurations/market/#using-filters-for-fine-grained-storage-and-retrieval-deal-acceptance for more details`,
-		},
-		{
-			Name: "RetrievalPricing",
-			Type: "*RetrievalPricing",
-
-			Comment: ``,
 		},
 	},
 	"EventsConfig": {
@@ -479,12 +247,6 @@ Set to 0 to keep all mappings`,
 	},
 	"FullNode": {
 		{
-			Name: "Client",
-			Type: "Client",
-
-			Comment: ``,
-		},
-		{
 			Name: "Wallet",
 			Type: "Wallet",
 
@@ -499,12 +261,6 @@ Set to 0 to keep all mappings`,
 		{
 			Name: "Chainstore",
 			Type: "Chainstore",
-
-			Comment: ``,
-		},
-		{
-			Name: "Cluster",
-			Type: "UserRaftConfig",
 
 			Comment: ``,
 		},
@@ -573,51 +329,6 @@ in a cluster. Only 1 is required`,
 
 			Comment: `EXPERIMENTAL FEATURE. USE WITH CAUTION
 EnableMsgIndex enables indexing of messages on chain.`,
-		},
-	},
-	"IndexProviderConfig": {
-		{
-			Name: "Enable",
-			Type: "bool",
-
-			Comment: `Enable set whether to enable indexing announcement to the network and expose endpoints that
-allow indexer nodes to process announcements. Enabled by default.`,
-		},
-		{
-			Name: "EntriesCacheCapacity",
-			Type: "int",
-
-			Comment: `EntriesCacheCapacity sets the maximum capacity to use for caching the indexing advertisement
-entries. Defaults to 1024 if not specified. The cache is evicted using LRU policy. The
-maximum storage used by the cache is a factor of EntriesCacheCapacity, EntriesChunkSize and
-the length of multihashes being advertised. For example, advertising 128-bit long multihashes
-with the default EntriesCacheCapacity, and EntriesChunkSize means the cache size can grow to
-256MiB when full.`,
-		},
-		{
-			Name: "EntriesChunkSize",
-			Type: "int",
-
-			Comment: `EntriesChunkSize sets the maximum number of multihashes to include in a single entries chunk.
-Defaults to 16384 if not specified. Note that chunks are chained together for indexing
-advertisements that include more multihashes than the configured EntriesChunkSize.`,
-		},
-		{
-			Name: "TopicName",
-			Type: "string",
-
-			Comment: `TopicName sets the topic name on which the changes to the advertised content are announced.
-If not explicitly specified, the topic name is automatically inferred from the network name
-in following format: '/indexer/ingest/<network-name>'
-Defaults to empty, which implies the topic name is inferred from network name.`,
-		},
-		{
-			Name: "PurgeCacheOnStart",
-			Type: "bool",
-
-			Comment: `PurgeCacheOnStart sets whether to clear any cached entries chunks when the provider engine
-starts. By default, the cache is rehydrated from previously cached entries stored in
-datastore if any is present.`,
 		},
 	},
 	"JournalConfig": {
@@ -701,136 +412,6 @@ closed by the connection manager.`,
 			Type: "map[string]string",
 
 			Comment: `SubsystemLevels specify per-subsystem log levels`,
-		},
-	},
-	"LotusProviderAddresses": {
-		{
-			Name: "PreCommitControl",
-			Type: "[]string",
-
-			Comment: `Addresses to send PreCommit messages from`,
-		},
-		{
-			Name: "CommitControl",
-			Type: "[]string",
-
-			Comment: `Addresses to send Commit messages from`,
-		},
-		{
-			Name: "TerminateControl",
-			Type: "[]string",
-
-			Comment: ``,
-		},
-		{
-			Name: "DisableOwnerFallback",
-			Type: "bool",
-
-			Comment: `DisableOwnerFallback disables usage of the owner address for messages
-sent automatically`,
-		},
-		{
-			Name: "DisableWorkerFallback",
-			Type: "bool",
-
-			Comment: `DisableWorkerFallback disables usage of the worker address for messages
-sent automatically, if control addresses are configured.
-A control address that doesn't have enough funds will still be chosen
-over the worker address if this flag is set.`,
-		},
-		{
-			Name: "MinerAddresses",
-			Type: "[]string",
-
-			Comment: `MinerAddresses are the addresses of the miner actors to use for sending messages`,
-		},
-	},
-	"LotusProviderConfig": {
-		{
-			Name: "Subsystems",
-			Type: "ProviderSubsystemsConfig",
-
-			Comment: ``,
-		},
-		{
-			Name: "Fees",
-			Type: "LotusProviderFees",
-
-			Comment: ``,
-		},
-		{
-			Name: "Addresses",
-			Type: "LotusProviderAddresses",
-
-			Comment: ``,
-		},
-		{
-			Name: "Proving",
-			Type: "ProvingConfig",
-
-			Comment: ``,
-		},
-		{
-			Name: "Journal",
-			Type: "JournalConfig",
-
-			Comment: ``,
-		},
-		{
-			Name: "Apis",
-			Type: "ApisConfig",
-
-			Comment: ``,
-		},
-	},
-	"LotusProviderFees": {
-		{
-			Name: "DefaultMaxFee",
-			Type: "types.FIL",
-
-			Comment: ``,
-		},
-		{
-			Name: "MaxPreCommitGasFee",
-			Type: "types.FIL",
-
-			Comment: ``,
-		},
-		{
-			Name: "MaxCommitGasFee",
-			Type: "types.FIL",
-
-			Comment: ``,
-		},
-		{
-			Name: "MaxPreCommitBatchGasFee",
-			Type: "BatchFeeConfig",
-
-			Comment: `maxBatchFee = maxBase + maxPerSector * nSectors`,
-		},
-		{
-			Name: "MaxCommitBatchGasFee",
-			Type: "BatchFeeConfig",
-
-			Comment: ``,
-		},
-		{
-			Name: "MaxTerminateGasFee",
-			Type: "types.FIL",
-
-			Comment: ``,
-		},
-		{
-			Name: "MaxWindowPoStGasFee",
-			Type: "types.FIL",
-
-			Comment: `WindowPoSt is a high-value operation, so the default fee should be high.`,
-		},
-		{
-			Name: "MaxPublishDealsFee",
-			Type: "types.FIL",
-
-			Comment: ``,
 		},
 	},
 	"MinerAddressConfig": {
@@ -951,12 +532,6 @@ over the worker address if this flag is set.`,
 			Comment: ``,
 		},
 		{
-			Name: "EnableMarkets",
-			Type: "bool",
-
-			Comment: ``,
-		},
-		{
 			Name: "EnableSectorIndexDB",
 			Type: "bool",
 
@@ -1000,32 +575,6 @@ blocks. This should only be set when there's an external process mining
 blocks on behalf of the miner.
 When disabled and no external block producers are configured, all potential
 block rewards will be missed!`,
-		},
-	},
-	"ProviderSubsystemsConfig": {
-		{
-			Name: "EnableWindowPost",
-			Type: "bool",
-
-			Comment: ``,
-		},
-		{
-			Name: "WindowPostMaxTasks",
-			Type: "int",
-
-			Comment: ``,
-		},
-		{
-			Name: "EnableWinningPost",
-			Type: "bool",
-
-			Comment: ``,
-		},
-		{
-			Name: "WinningPostMaxTasks",
-			Type: "int",
-
-			Comment: ``,
 		},
 	},
 	"ProvingConfig": {
@@ -1210,46 +759,6 @@ This property is used only if ElasticSearchTracer propery is set.`,
 			Type: "string",
 
 			Comment: `Auth token that will be passed with logs to elasticsearch - used for weighted peers score.`,
-		},
-	},
-	"RetrievalPricing": {
-		{
-			Name: "Strategy",
-			Type: "string",
-
-			Comment: ``,
-		},
-		{
-			Name: "Default",
-			Type: "*RetrievalPricingDefault",
-
-			Comment: ``,
-		},
-		{
-			Name: "External",
-			Type: "*RetrievalPricingExternal",
-
-			Comment: ``,
-		},
-	},
-	"RetrievalPricingDefault": {
-		{
-			Name: "VerifiedDealsFreeTransfer",
-			Type: "bool",
-
-			Comment: `VerifiedDealsFreeTransfer configures zero fees for data transfer for a retrieval deal
-of a payloadCid that belongs to a verified storage deal.
-This parameter is ONLY applicable if the retrieval pricing policy strategy has been configured to "default".
-default value is true`,
-		},
-	},
-	"RetrievalPricingExternal": {
-		{
-			Name: "Path",
-			Type: "string",
-
-			Comment: `Path of the external script that will be run to price a retrieval deal.
-This parameter is ONLY applicable if the retrieval pricing policy strategy has been configured to "external".`,
 		},
 	},
 	"SealerConfig": {
@@ -1670,12 +1179,6 @@ HotstoreMaxSpaceTarget - HotstoreMaxSpaceSafetyBuffer`,
 			Comment: ``,
 		},
 		{
-			Name: "IndexProvider",
-			Type: "IndexProviderConfig",
-
-			Comment: ``,
-		},
-		{
 			Name: "Proving",
 			Type: "ProvingConfig",
 
@@ -1706,78 +1209,10 @@ HotstoreMaxSpaceTarget - HotstoreMaxSpaceSafetyBuffer`,
 			Comment: ``,
 		},
 		{
-			Name: "DAGStore",
-			Type: "DAGStoreConfig",
-
-			Comment: ``,
-		},
-		{
 			Name: "HarmonyDB",
 			Type: "HarmonyDB",
 
 			Comment: ``,
-		},
-	},
-	"UserRaftConfig": {
-		{
-			Name: "ClusterModeEnabled",
-			Type: "bool",
-
-			Comment: `EXPERIMENTAL. config to enabled node cluster with raft consensus`,
-		},
-		{
-			Name: "DataFolder",
-			Type: "string",
-
-			Comment: `A folder to store Raft's data.`,
-		},
-		{
-			Name: "InitPeersetMultiAddr",
-			Type: "[]string",
-
-			Comment: `InitPeersetMultiAddr provides the list of initial cluster peers for new Raft
-peers (with no prior state). It is ignored when Raft was already
-initialized or when starting in staging mode.`,
-		},
-		{
-			Name: "WaitForLeaderTimeout",
-			Type: "Duration",
-
-			Comment: `LeaderTimeout specifies how long to wait for a leader before
-failing an operation.`,
-		},
-		{
-			Name: "NetworkTimeout",
-			Type: "Duration",
-
-			Comment: `NetworkTimeout specifies how long before a Raft network
-operation is timed out`,
-		},
-		{
-			Name: "CommitRetries",
-			Type: "int",
-
-			Comment: `CommitRetries specifies how many times we retry a failed commit until
-we give up.`,
-		},
-		{
-			Name: "CommitRetryDelay",
-			Type: "Duration",
-
-			Comment: `How long to wait between retries`,
-		},
-		{
-			Name: "BackupsRotate",
-			Type: "int",
-
-			Comment: `BackupsRotate specifies the maximum number of Raft's DataFolder
-copies that we keep as backups (renaming) after cleanup.`,
-		},
-		{
-			Name: "Tracing",
-			Type: "bool",
-
-			Comment: `Tracing enables propagation of contexts across binary boundaries.`,
 		},
 	},
 	"Wallet": {

@@ -25,6 +25,7 @@ import (
 const DefaultPresealsPerBootstrapMiner = 2
 
 const TestSpt = abi.RegisteredSealProof_StackedDrg2KiBV1_1
+const TestSptNi = abi.RegisteredSealProof_StackedDrg2KiBV1_2_Feat_NiPoRep
 
 // nodeOpts is an options accumulating struct, where functional options are
 // merged into.
@@ -43,7 +44,6 @@ type nodeOpts struct {
 	disableLibp2p          bool
 	optBuilders            []OptBuilder
 	sectorSize             abi.SectorSize
-	maxStagingDealsBytes   int64
 	minerNoLocalSealing    bool // use worker
 	minerAssigner          string
 	disallowRemoteFinalize bool
@@ -84,7 +84,6 @@ type NodeOpt func(opts *nodeOpts) error
 
 func WithAllSubsystems() NodeOpt {
 	return func(opts *nodeOpts) error {
-		opts.subsystems = opts.subsystems.Add(SMarkets)
 		opts.subsystems = opts.subsystems.Add(SMining)
 		opts.subsystems = opts.subsystems.Add(SSealing)
 		opts.subsystems = opts.subsystems.Add(SSectorStorage)
@@ -108,14 +107,6 @@ func WithSubsystems(systems ...MinerSubsystem) NodeOpt {
 		return nil
 	}
 }
-
-func WithMaxStagingDealsBytes(size int64) NodeOpt {
-	return func(opts *nodeOpts) error {
-		opts.maxStagingDealsBytes = size
-		return nil
-	}
-}
-
 func WithNoLocalSealing(nope bool) NodeOpt {
 	return func(opts *nodeOpts) error {
 		opts.minerNoLocalSealing = nope

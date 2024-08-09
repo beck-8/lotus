@@ -16,11 +16,10 @@ import (
 )
 
 var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
-	0:                    DrandMainnet,
-	UpgradePhoenixHeight: DrandQuicknet,
+	0: DrandQuicknet,
 }
 
-const GenesisNetworkVersion = network.Version21
+const GenesisNetworkVersion = network.Version22
 
 var NetworkBundle = "butterflynet"
 var BundleOverrides map[actorstypes.Version]string
@@ -56,10 +55,10 @@ const UpgradeHyggeHeight = -21
 const UpgradeLightningHeight = -22
 const UpgradeThunderHeight = -23
 const UpgradeWatermelonHeight = -24
+const UpgradeDragonHeight = -25
+const UpgradePhoenixHeight = -26
 
-const UpgradeDragonHeight = 5760
-
-const UpgradePhoenixHeight = UpgradeDragonHeight + 120
+const UpgradeWaffleHeight = 100
 
 // This fix upgrade only ran on calibrationnet
 const UpgradeWatermelonFixHeight = -100
@@ -106,3 +105,7 @@ const BootstrapPeerThreshold = 2
 const Eip155ChainId = 3141592
 
 var WhitelistedBlock = cid.Undef
+
+const f3Enabled = true
+const ManifestServerID = "12D3KooWJr9jy4ngtJNR7JC1xgLFra3DjEtyxskRYWvBK9TC3Yn6"
+const F3BootstrapEpoch abi.ChainEpoch = 1000

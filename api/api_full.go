@@ -6,16 +6,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
-	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-bitfield"
-	datatransfer "github.com/filecoin-project/go-data-transfer/v2"
-	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
-	"github.com/filecoin-project/go-fil-markets/storagemarket"
+	"github.com/filecoin-project/go-f3/certs"
+	"github.com/filecoin-project/go-f3/gpbft"
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
@@ -34,7 +31,6 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/types/ethtypes"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
-	"github.com/filecoin-project/lotus/node/repo/imports"
 )
 
 //go:generate go run github.com/golang/mock/mockgen -destination=mocks/mock_full.go -package=mocks . FullNode
@@ -335,7 +331,7 @@ type FullNode interface {
 	WalletVerify(context.Context, address.Address, []byte, *crypto.Signature) (bool, error) //perm:read
 	// WalletDefaultAddress returns the address marked as default in the wallet.
 	WalletDefaultAddress(context.Context) (address.Address, error) //perm:write
-	// WalletSetDefault marks the given address as as the default one.
+	// WalletSetDefault marks the given address as the default one.
 	WalletSetDefault(context.Context, address.Address) error //perm:write
 	// WalletExport returns the private key of an address in the wallet.
 	WalletExport(context.Context, address.Address) (*types.KeyInfo, error) //perm:admin
@@ -347,74 +343,6 @@ type FullNode interface {
 	WalletValidateAddress(context.Context, string) (address.Address, error) //perm:read
 
 	// Other
-
-	// MethodGroup: Client
-	// The Client methods all have to do with interacting with the storage and
-	// retrieval markets as a client
-
-	// ClientImport imports file under the specified path into filestore.
-	ClientImport(ctx context.Context, ref FileRef) (*ImportRes, error) //perm:admin
-	// ClientRemoveImport removes file import
-	ClientRemoveImport(ctx context.Context, importID imports.ID) error //perm:admin
-	// ClientStartDeal proposes a deal with a miner.
-	ClientStartDeal(ctx context.Context, params *StartDealParams) (*cid.Cid, error) //perm:admin
-	// ClientStatelessDeal fire-and-forget-proposes an offline deal to a miner without subsequent tracking.
-	ClientStatelessDeal(ctx context.Context, params *StartDealParams) (*cid.Cid, error) //perm:write
-	// ClientGetDealInfo returns the latest information about a given deal.
-	ClientGetDealInfo(context.Context, cid.Cid) (*DealInfo, error) //perm:read
-	// ClientListDeals returns information about the deals made by the local client.
-	ClientListDeals(ctx context.Context) ([]DealInfo, error) //perm:write
-	// ClientGetDealUpdates returns the status of updated deals
-	ClientGetDealUpdates(ctx context.Context) (<-chan DealInfo, error) //perm:write
-	// ClientGetDealStatus returns status given a code
-	ClientGetDealStatus(ctx context.Context, statusCode uint64) (string, error) //perm:read
-	// ClientHasLocal indicates whether a certain CID is locally stored.
-	ClientHasLocal(ctx context.Context, root cid.Cid) (bool, error) //perm:write
-	// ClientFindData identifies peers that have a certain file, and returns QueryOffers (one per peer).
-	ClientFindData(ctx context.Context, root cid.Cid, piece *cid.Cid) ([]QueryOffer, error) //perm:read
-	// ClientMinerQueryOffer returns a QueryOffer for the specific miner and file.
-	ClientMinerQueryOffer(ctx context.Context, miner address.Address, root cid.Cid, piece *cid.Cid) (QueryOffer, error) //perm:read
-	// ClientRetrieve initiates the retrieval of a file, as specified in the order.
-	ClientRetrieve(ctx context.Context, params RetrievalOrder) (*RestrievalRes, error) //perm:admin
-	// ClientRetrieveWait waits for retrieval to be complete
-	ClientRetrieveWait(ctx context.Context, deal retrievalmarket.DealID) error //perm:admin
-	// ClientExport exports a file stored in the local filestore to a system file
-	ClientExport(ctx context.Context, exportRef ExportRef, fileRef FileRef) error //perm:admin
-	// ClientListRetrievals returns information about retrievals made by the local client
-	ClientListRetrievals(ctx context.Context) ([]RetrievalInfo, error) //perm:write
-	// ClientGetRetrievalUpdates returns status of updated retrieval deals
-	ClientGetRetrievalUpdates(ctx context.Context) (<-chan RetrievalInfo, error) //perm:write
-	// ClientQueryAsk returns a signed StorageAsk from the specified miner.
-	ClientQueryAsk(ctx context.Context, p peer.ID, miner address.Address) (*StorageAsk, error) //perm:read
-	// ClientCalcCommP calculates the CommP and data size of the specified CID
-	ClientDealPieceCID(ctx context.Context, root cid.Cid) (DataCIDSize, error) //perm:read
-	// ClientCalcCommP calculates the CommP for a specified file
-	ClientCalcCommP(ctx context.Context, inpath string) (*CommPRet, error) //perm:write
-	// ClientGenCar generates a CAR file for the specified file.
-	ClientGenCar(ctx context.Context, ref FileRef, outpath string) error //perm:write
-	// ClientDealSize calculates real deal data size
-	ClientDealSize(ctx context.Context, root cid.Cid) (DataSize, error) //perm:read
-	// ClientListTransfers returns the status of all ongoing transfers of data
-	ClientListDataTransfers(ctx context.Context) ([]DataTransferChannel, error)        //perm:write
-	ClientDataTransferUpdates(ctx context.Context) (<-chan DataTransferChannel, error) //perm:write
-	// ClientRestartDataTransfer attempts to restart a data transfer with the given transfer ID and other peer
-	ClientRestartDataTransfer(ctx context.Context, transferID datatransfer.TransferID, otherPeer peer.ID, isInitiator bool) error //perm:write
-	// ClientCancelDataTransfer cancels a data transfer with the given transfer ID and other peer
-	ClientCancelDataTransfer(ctx context.Context, transferID datatransfer.TransferID, otherPeer peer.ID, isInitiator bool) error //perm:write
-	// ClientRetrieveTryRestartInsufficientFunds attempts to restart stalled retrievals on a given payment channel
-	// which are stuck due to insufficient funds
-	ClientRetrieveTryRestartInsufficientFunds(ctx context.Context, paymentChannel address.Address) error //perm:write
-
-	// ClientCancelRetrievalDeal cancels an ongoing retrieval deal based on DealID
-	ClientCancelRetrievalDeal(ctx context.Context, dealid retrievalmarket.DealID) error //perm:write
-
-	// ClientUnimport removes references to the specified file from filestore
-	// ClientUnimport(path string)
-
-	// ClientListImports lists imported files and their root CIDs
-	ClientListImports(ctx context.Context) ([]Import, error) //perm:write
-
-	// ClientListAsks() []Ask
 
 	// MethodGroup: State
 	// The State methods are used to query, inspect, and interact with chain state.
@@ -903,14 +831,14 @@ type FullNode interface {
 	// Replays all transactions in a block returning the requested traces for each transaction
 	EthTraceReplayBlockTransactions(ctx context.Context, blkNum string, traceTypes []string) ([]*ethtypes.EthTraceReplayBlockTransaction, error) //perm:read
 
+	// Implmements OpenEthereum-compatible API method trace_transaction
+	EthTraceTransaction(ctx context.Context, txHash string) ([]*ethtypes.EthTraceTransaction, error) //perm:read
+
 	// CreateBackup creates node backup onder the specified file name. The
 	// method requires that the lotus daemon is running with the
 	// LOTUS_BACKUP_BASE_PATH environment variable set to some path, and that
 	// the path specified when calling CreateBackup is within the base path
 	CreateBackup(ctx context.Context, fpath string) error //perm:admin
-
-	RaftState(ctx context.Context) (*RaftStateData, error) //perm:read
-	RaftLeader(ctx context.Context) (peer.ID, error)       //perm:read
 
 	// Actor events
 
@@ -938,23 +866,36 @@ type FullNode interface {
 	// Note: this API is only available via websocket connections.
 	// This is an EXPERIMENTAL API and may be subject to change.
 	SubscribeActorEventsRaw(ctx context.Context, filter *types.ActorEventFilter) (<-chan *types.ActorEvent, error) //perm:read
+
+	//*********************************** ALL F3 APIs below are not stable & subject to change ***********************************
+
+	// F3Participate should be called by a storage provider to participate in signing F3 consensus.
+	// Calling this API gives the lotus node a lease to sign in F3 on behalf of given SP.
+	// The lease should be active only on one node. The lease will expire at the newLeaseExpiration.
+	// To continue participating in F3 with the given node, call F3Participate again before
+	// the newLeaseExpiration time.
+	// newLeaseExpiration cannot be further than 5 minutes in the future.
+	// It is recommended to call F3Participate every 60 seconds
+	// with newLeaseExpiration set 2min into the future.
+	// The oldLeaseExpiration has to be set to newLeaseExpiration of the last successful call.
+	// For the first call to F3Participate, set the oldLeaseExpiration to zero value/time in the past.
+	// F3Participate will return true if the lease was accepted.
+	// The minerID has to be the ID address of the miner.
+	F3Participate(ctx context.Context, minerID address.Address, newLeaseExpiration time.Time, oldLeaseExpiration time.Time) (bool, error) //perm:sign
+	// F3GetCertificate returns a finality certificate at given instance number
+	F3GetCertificate(ctx context.Context, instance uint64) (*certs.FinalityCertificate, error) //perm:read
+	// F3GetLatestCertificate returns the latest finality certificate
+	F3GetLatestCertificate(ctx context.Context) (*certs.FinalityCertificate, error) //perm:read
+	// F3GetECPowerTable returns a F3 specific power table for use in standalone F3 nodes.
+	F3GetECPowerTable(ctx context.Context, tsk types.TipSetKey) (gpbft.PowerEntries, error) //perm:read
+	// F3GetF3PowerTable returns a F3 specific power table.
+	F3GetF3PowerTable(ctx context.Context, tsk types.TipSetKey) (gpbft.PowerEntries, error) //perm:read
 }
 
 // reverse interface to the client, called after EthSubscribe
 type EthSubscriber interface {
 	// note: the parameter is ethtypes.EthSubscriptionResponse serialized as json object
 	EthSubscription(ctx context.Context, r jsonrpc.RawParams) error // rpc_method:eth_subscription notify:true
-}
-
-type StorageAsk struct {
-	Response *storagemarket.StorageAsk
-
-	DealProtocols []string
-}
-
-type FileRef struct {
-	Path  string
-	IsCAR bool
 }
 
 type MinerSectors struct {
@@ -974,54 +915,6 @@ type MinerAllSectors struct {
 	Active uint64
 	// Sectors with failed proofs.
 	Faulty uint64
-}
-type ImportRes struct {
-	Root     cid.Cid
-	ImportID imports.ID
-}
-
-type Import struct {
-	Key imports.ID
-	Err string
-
-	Root *cid.Cid
-
-	// Source is the provenance of the import, e.g. "import", "unknown", else.
-	// Currently useless but may be used in the future.
-	Source string
-
-	// FilePath is the path of the original file. It is important that the file
-	// is retained at this path, because it will be referenced during
-	// the transfer (when we do the UnixFS chunking, we don't duplicate the
-	// leaves, but rather point to chunks of the original data through
-	// positional references).
-	FilePath string
-
-	// CARPath is the path of the CAR file containing the DAG for this import.
-	CARPath string
-}
-
-type DealInfo struct {
-	ProposalCid cid.Cid
-	State       storagemarket.StorageDealStatus
-	Message     string // more information about deal state, particularly errors
-	DealStages  *storagemarket.DealStages
-	Provider    address.Address
-
-	DataRef  *storagemarket.DataRef
-	PieceCID cid.Cid
-	Size     uint64
-
-	PricePerEpoch types.BigInt
-	Duration      uint64
-
-	DealID abi.DealID
-
-	CreationTime time.Time
-	Verified     bool
-
-	TransferChannelID *datatransfer.ChannelID
-	DataTransfer      *DataTransferChannel
 }
 
 type MsgLookup struct {
@@ -1145,51 +1038,21 @@ type MinerPower struct {
 	HasMinPower bool
 }
 
-type QueryOffer struct {
-	Err string
-
-	Root  cid.Cid
-	Piece *cid.Cid
-
-	Size                    uint64
-	MinPrice                types.BigInt
-	UnsealPrice             types.BigInt
-	PricePerByte            abi.TokenAmount
-	PaymentInterval         uint64
-	PaymentIntervalIncrease uint64
-	Miner                   address.Address
-	MinerPeer               retrievalmarket.RetrievalPeer
-}
-
-func (o *QueryOffer) Order(client address.Address) RetrievalOrder {
-	return RetrievalOrder{
-		Root:                    o.Root,
-		Piece:                   o.Piece,
-		Size:                    o.Size,
-		Total:                   o.MinPrice,
-		UnsealPrice:             o.UnsealPrice,
-		PaymentInterval:         o.PaymentInterval,
-		PaymentIntervalIncrease: o.PaymentIntervalIncrease,
-		Client:                  client,
-
-		Miner:     o.Miner,
-		MinerPeer: &o.MinerPeer,
-	}
-}
-
 type MarketBalance struct {
 	Escrow big.Int
 	Locked big.Int
 }
 
 type MarketDealState struct {
-	SectorStartEpoch abi.ChainEpoch // -1 if not yet included in proven sector
-	LastUpdatedEpoch abi.ChainEpoch // -1 if deal state never updated
-	SlashEpoch       abi.ChainEpoch // -1 if deal never slashed
+	SectorNumber     abi.SectorNumber // 0 if not yet included in proven sector (0 is also a valid sector number).
+	SectorStartEpoch abi.ChainEpoch   // -1 if not yet included in proven sector
+	LastUpdatedEpoch abi.ChainEpoch   // -1 if deal state never updated
+	SlashEpoch       abi.ChainEpoch   // -1 if deal never slashed
 }
 
 func MakeDealState(mds market.DealState) MarketDealState {
 	return MarketDealState{
+		SectorNumber:     mds.SectorNumber(),
 		SectorStartEpoch: mds.SectorStartEpoch(),
 		LastUpdatedEpoch: mds.LastUpdatedEpoch(),
 		SlashEpoch:       mds.SlashEpoch(),
@@ -1198,6 +1061,10 @@ func MakeDealState(mds market.DealState) MarketDealState {
 
 type mstate struct {
 	s MarketDealState
+}
+
+func (m mstate) SectorNumber() abi.SectorNumber {
+	return m.s.SectorNumber
 }
 
 func (m mstate) SectorStartEpoch() abi.ChainEpoch {
@@ -1225,27 +1092,6 @@ type MarketDeal struct {
 	State    MarketDealState
 }
 
-type RetrievalOrder struct {
-	Root         cid.Cid
-	Piece        *cid.Cid
-	DataSelector *Selector
-
-	// todo: Size/Total are only used for calculating price per byte; we should let users just pass that
-	Size  uint64
-	Total types.BigInt
-
-	UnsealPrice             types.BigInt
-	PaymentInterval         uint64
-	PaymentIntervalIncrease uint64
-	Client                  address.Address
-	Miner                   address.Address
-	MinerPeer               *retrievalmarket.RetrievalPeer
-
-	RemoteStore *RemoteStoreID `json:"RemoteStore,omitempty"`
-}
-
-type RemoteStoreID = uuid.UUID
-
 type InvocResult struct {
 	MsgCid         cid.Cid
 	Msg            *types.Message
@@ -1254,39 +1100,6 @@ type InvocResult struct {
 	ExecutionTrace types.ExecutionTrace
 	Error          string
 	Duration       time.Duration
-}
-
-type MethodCall struct {
-	types.MessageReceipt
-	Error string
-}
-
-type StartDealParams struct {
-	Data               *storagemarket.DataRef
-	Wallet             address.Address
-	Miner              address.Address
-	EpochPrice         types.BigInt
-	MinBlocksDuration  uint64
-	ProviderCollateral big.Int
-	DealStartEpoch     abi.ChainEpoch
-	FastRetrieval      bool
-	VerifiedDeal       bool
-}
-
-func (s *StartDealParams) UnmarshalJSON(raw []byte) (err error) {
-	type sdpAlias StartDealParams
-
-	sdp := sdpAlias{
-		FastRetrieval: true,
-	}
-
-	if err := json.Unmarshal(raw, &sdp); err != nil {
-		return err
-	}
-
-	*s = StartDealParams(sdp)
-
-	return nil
 }
 
 type IpldObject struct {
@@ -1400,21 +1213,6 @@ type BlockTemplate struct {
 	WinningPoStProof []builtin.PoStProof
 }
 
-type DataSize struct {
-	PayloadSize int64
-	PieceSize   abi.PaddedPieceSize
-}
-
-type DataCIDSize struct {
-	PayloadSize int64
-	PieceSize   abi.PaddedPieceSize
-	PieceCID    cid.Cid
-}
-
-type CommPRet struct {
-	Root cid.Cid
-	Size abi.UnpaddedPieceSize
-}
 type HeadChange struct {
 	Type string
 	Val  *types.TipSet
