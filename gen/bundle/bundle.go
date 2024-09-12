@@ -9,7 +9,7 @@ import (
 	"github.com/filecoin-project/lotus/build"
 )
 
-var tmpl *template.Template = template.Must(template.New("actor-metadata").Parse(`
+var tmpl = template.Must(template.New("actor-metadata").Parse(`
 // WARNING: This file has automatically been generated
 
 package build
@@ -18,7 +18,7 @@ import (
 	"github.com/ipfs/go-cid"
 )
 
-var EmbeddedBuiltinActorsMetadata []*BuiltinActorsMetadata = []*BuiltinActorsMetadata{
+var EmbeddedBuiltinActorsMetadata = []*BuiltinActorsMetadata{
 {{- range . }} {
 	Network: {{printf "%q" .Network}},
 	Version: {{.Version}},

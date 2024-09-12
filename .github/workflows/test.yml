@@ -16,7 +16,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
   discover:
@@ -58,19 +59,12 @@ jobs:
           #   to extend the available runner capacity (60 default hosted runners).
           # We use self-hosted 4xlarge (16 CPU, 32 RAM; and 2xlarge - 8 CPU, 16 RAM) self-hosted
           #   to support resource intensive jobs.
-          # In CircleCI, the jobs defaulted to running on medium+ runners (3 CPU, 6 RAM).
-          # The following jobs were scheduled to run on 2xlarge runners (16 CPU, 32 RAM):
-          # - itest-deals_concurrent (✅)
-          # - itest-sector_pledge (✅)
-          # - itest-wdpost_worker_config (❌)
-          # - itest-worker (✅)
-          # - unit-cli (❌)
-          # - unit-rest (❌)
           runners: |
             {
-              "itest-deals_concurrent": ["self-hosted", "linux", "x64", "4xlarge"],
+              "itest-niporep_manual": ["self-hosted", "linux", "x64", "4xlarge"],
               "itest-sector_pledge": ["self-hosted", "linux", "x64", "4xlarge"],
               "itest-worker": ["self-hosted", "linux", "x64", "4xlarge"],
+              "itest-manual_onboarding": ["self-hosted", "linux", "x64", "4xlarge"],
 
               "itest-gateway": ["self-hosted", "linux", "x64", "2xlarge"],
               "itest-sector_import_full": ["self-hosted", "linux", "x64", "2xlarge"],
@@ -78,15 +72,8 @@ jobs:
               "itest-wdpost": ["self-hosted", "linux", "x64", "2xlarge"],
               "unit-storage": ["self-hosted", "linux", "x64", "2xlarge"],
 
-              "itest-batch_deal": ["self-hosted", "linux", "x64", "xlarge"],
               "itest-cli": ["self-hosted", "linux", "x64", "xlarge"],
-              "itest-deals_512mb": ["self-hosted", "linux", "x64", "xlarge"],
-              "itest-deals_anycid": ["self-hosted", "linux", "x64", "xlarge"],
               "itest-deals_invalid_utf8_label": ["self-hosted", "linux", "x64", "xlarge"],
-              "itest-deals_max_staging_deals": ["self-hosted", "linux", "x64", "xlarge"],
-              "itest-deals_partial_retrieval": ["self-hosted", "linux", "x64", "xlarge"],
-              "itest-deals_publish": ["self-hosted", "linux", "x64", "xlarge"],
-              "itest-deals_remote_retrieval": ["self-hosted", "linux", "x64", "xlarge"],
               "itest-decode_params": ["self-hosted", "linux", "x64", "xlarge"],
               "itest-dup_mpool_messages": ["self-hosted", "linux", "x64", "xlarge"],
               "itest-eth_account_abstraction": ["self-hosted", "linux", "x64", "xlarge"],
@@ -122,31 +109,20 @@ jobs:
               "unit-node": ["self-hosted", "linux", "x64", "xlarge"]
             }
           # A list of test groups that require YugabyteDB to be running
-          # In CircleCI, all jobs had yugabytedb running as a sidecar.
           yugabytedb: |
-            ["itest-harmonydb", "itest-harmonytask", "itest-curio"]
+            ["itest-harmonydb"]
           # A list of test groups that require Proof Parameters to be fetched
-          # In CircleCI, only the following jobs had get-params set:
-          # - unit-cli (✅)
-          # - unit-storage (✅)
-          # - itest-sector_pledge (✅)
-          # - itest-wdpost (✅)
           parameters: |
             [
               "conformance",
               "itest-api",
-              "itest-deals_offline",
-              "itest-deals_padding",
-              "itest-deals_partial_retrieval_dm-level",
-              "itest-deals_pricing",
-              "itest-deals",
               "itest-direct_data_onboard_verified",
               "itest-direct_data_onboard",
+              "itest-manual_onboarding",
+              "itest-niporep_manual",
               "itest-net",
               "itest-path_detach_redeclare",
-              "itest-path_type_filters",
               "itest-sealing_resources",
-              "itest-sector_finalize_early",
               "itest-sector_import_full",
               "itest-sector_import_simple",
               "itest-sector_pledge",
@@ -154,7 +130,6 @@ jobs:
               "itest-wdpost_no_miner_storage",
               "itest-wdpost_worker_config",
               "itest-wdpost",
-              "itest-worker_upgrade",
               "itest-worker",
               "multicore-sdr",
               "unit-cli",
@@ -217,7 +192,7 @@ jobs:
           echo -e "path<<EOF\n$CACHE_PATH\nEOF" | tee -a $GITHUB_OUTPUT
       - id: make_deps
         env:
-          CACHE_KEY: ${{ runner.os }}-${{ runner.arch }}-make-deps-${{ hashFiles('./extern/filecoin-ffi/install-filcrypto') }}-${{ hashFiles('./extern/filecoin-ffi/rust/rustc-target-features-optimized.json') }}
+          CACHE_KEY: ${{ runner.os }}-${{ runner.arch }}-make-deps-${{ hashFiles('./.git/modules/extern/filecoin-ffi/HEAD') }}
           CACHE_PATH: |
             ./extern/filecoin-ffi/filcrypto.h
             ./extern/filecoin-ffi/libfilcrypto.a
@@ -262,7 +237,7 @@ jobs:
   test:
     needs: [discover, cache]
     name: Test (${{ matrix.name }})
-    runs-on: ${{ github.repository == 'filecoin-project/lotus' && matrix.runner || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'filecoin-project' && matrix.runner || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:

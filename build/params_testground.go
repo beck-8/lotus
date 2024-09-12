@@ -115,6 +115,7 @@ var (
 	UpgradeDragonHeight               abi.ChainEpoch = -26
 	UpgradePhoenixHeight              abi.ChainEpoch = -27
 	UpgradeCalibrationDragonFixHeight abi.ChainEpoch = -28
+	UpgradeWaffleHeight               abi.ChainEpoch = -29
 
 	DrandSchedule = map[abi.ChainEpoch]DrandEnum{
 		0:                    DrandMainnet,
@@ -132,9 +133,12 @@ var (
 	Devnet      = true
 	ZeroAddress = MustParseAddress("f3yaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaby2smx7a")
 
-	WhitelistedBlock  = cid.Undef
-	BootstrappersFile = ""
-	GenesisFile       = ""
+	WhitelistedBlock                 = cid.Undef
+	BootstrappersFile                = ""
+	GenesisFile                      = ""
+	f3Enabled                        = false
+	ManifestServerID                 = ""
+	F3BootstrapEpoch  abi.ChainEpoch = -1
 )
 
 const Finality = policy.ChainFinality
