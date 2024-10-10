@@ -486,7 +486,7 @@ var filplusListClaimsCmd = &cli.Command{
 				return err
 			}
 			for _, s := range sectors {
-				if int64(s.Expiration) >= startEpoch && int64(s.Expiration) <= endEpoch {
+				if int64(s.Activation) >= startEpoch && int64(s.Activation) <= endEpoch {
 					sectorIDs[s.SectorNumber] = true
 				}
 			}
