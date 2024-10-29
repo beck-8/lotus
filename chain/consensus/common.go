@@ -29,6 +29,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/chain/types/ethtypes"
 	"github.com/filecoin-project/lotus/chain/vm"
 	"github.com/filecoin-project/lotus/lib/async"
 	"github.com/filecoin-project/lotus/metrics"
@@ -131,6 +132,18 @@ func CommonBlkChecks(ctx context.Context, sm *stmgr.StateManager, cs *store.Chai
 	}
 }
 
+func IsValidEthTxForSending(nv network.Version, smsg *types.SignedMessage) bool {
+	ethTx, err := ethtypes.EthTransactionFromSignedFilecoinMessage(smsg)
+	if err != nil {
+		return false
+	}
+
+	if nv < network.Version23 && ethTx.Type() != ethtypes.EIP1559TxType {
+		return false
+	}
+	return true
+}
+
 func IsValidForSending(nv network.Version, act *types.Actor) bool {
 	// Before nv18 (Hygge), we only supported built-in account actors as senders.
 	//
@@ -155,12 +168,12 @@ func IsValidForSending(nv network.Version, act *types.Actor) bool {
 
 	// Allow placeholder actors with a delegated address and nonce 0 to send a message.
 	// These will be converted to an EthAccount actor on first send.
-	if !builtin.IsPlaceholderActor(act.Code) || act.Nonce != 0 || act.Address == nil || act.Address.Protocol() != address.Delegated {
+	if !builtin.IsPlaceholderActor(act.Code) || act.Nonce != 0 || act.DelegatedAddress == nil || act.DelegatedAddress.Protocol() != address.Delegated {
 		return false
 	}
 
 	// Only allow such actors to send if their delegated address is in the EAM's namespace.
-	id, _, err := varint.FromUvarint(act.Address.Payload())
+	id, _, err := varint.FromUvarint(act.DelegatedAddress.Payload())
 	return err == nil && id == builtintypes.EthereumAddressManagerActorID
 }
 
@@ -220,7 +233,7 @@ func checkBlockMessages(ctx context.Context, sm *stmgr.StateManager, cs *store.C
 		// the sender exists and is an account actor, and the nonces make sense
 		var sender address.Address
 		if nv >= network.Version13 {
-			sender, err = st.LookupID(m.From)
+			sender, err = st.LookupIDAddress(m.From)
 			if err != nil {
 				return xerrors.Errorf("failed to lookup sender %s: %w", m.From, err)
 			}
@@ -274,6 +287,10 @@ func checkBlockMessages(ctx context.Context, sm *stmgr.StateManager, cs *store.C
 	for i, m := range b.SecpkMessages {
 		if nv >= network.Version14 && !IsValidSecpkSigType(nv, m.Signature.Type) {
 			return xerrors.Errorf("block had invalid signed message at index %d: %w", i, err)
+		}
+
+		if m.Signature.Type == crypto.SigTypeDelegated && !IsValidEthTxForSending(nv, m) {
+			return xerrors.Errorf("network version should be atleast NV23 for sending legacy ETH transactions; but current network version is %d", nv)
 		}
 
 		if err := checkMsg(m); err != nil {
@@ -362,7 +379,8 @@ func CreateBlockHeader(ctx context.Context, sm *stmgr.StateManager, pts *types.T
 	var blsMsgCids, secpkMsgCids []cid.Cid
 	var blsSigs []crypto.Signature
 	nv := sm.GetNetworkVersion(ctx, bt.Epoch)
-	for _, msg := range bt.Messages {
+	for _, msgTmp := range bt.Messages {
+		msg := msgTmp
 		if msg.Signature.Type == crypto.SigTypeBLS {
 			blsSigs = append(blsSigs, msg.Signature)
 			blsMessages = append(blsMessages, &msg.Message)

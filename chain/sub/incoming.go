@@ -16,6 +16,7 @@ import (
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/connmgr"
 	"github.com/libp2p/go-libp2p/core/peer"
+	mh "github.com/multiformats/go-multihash"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/tag"
 	"golang.org/x/xerrors"
@@ -30,16 +31,16 @@ import (
 	"github.com/filecoin-project/lotus/chain/sub/ratelimit"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/metrics"
-	"github.com/filecoin-project/lotus/node/impl/client"
 	"github.com/filecoin-project/lotus/node/impl/full"
 )
 
 var log = logging.Logger("sub")
+var DefaultHashFunction = uint64(mh.BLAKE2B_MIN + 31)
 
 var msgCidPrefix = cid.Prefix{
 	Version:  1,
 	Codec:    cid.DagCBOR,
-	MhType:   client.DefaultHashFunction,
+	MhType:   DefaultHashFunction,
 	MhLength: 32,
 }
 
@@ -350,6 +351,7 @@ func (mv *MessageValidator) Validate(ctx context.Context, pid peer.ID, msg *pubs
 		)
 		recordFailure(ctx, metrics.MessageValidationFailure, "add")
 		switch {
+
 		case xerrors.Is(err, messagepool.ErrSoftValidationFailure):
 			fallthrough
 		case xerrors.Is(err, messagepool.ErrRBFTooLowPremium):
@@ -362,8 +364,17 @@ func (mv *MessageValidator) Validate(ctx context.Context, pid peer.ID, msg *pubs
 			fallthrough
 		case xerrors.Is(err, messagepool.ErrNonceTooLow):
 			fallthrough
+		case xerrors.Is(err, messagepool.ErrNotEnoughFunds):
+			fallthrough
 		case xerrors.Is(err, messagepool.ErrExistingNonce):
 			return pubsub.ValidationIgnore
+
+		case xerrors.Is(err, messagepool.ErrMessageTooBig):
+			fallthrough
+		case xerrors.Is(err, messagepool.ErrMessageValueTooHigh):
+			fallthrough
+		case xerrors.Is(err, messagepool.ErrInvalidToAddr):
+			fallthrough
 		default:
 			return pubsub.ValidationReject
 		}
@@ -506,7 +517,7 @@ func (v *IndexerMessageValidator) Validate(ctx context.Context, pid peer.ID, msg
 		return pubsub.ValidationReject
 	}
 	if len(idxrMsg.ExtraData) == 0 {
-		log.Debugw("ignoring messsage missing miner id", "peer", originPeer)
+		log.Debugw("ignoring message missing miner id", "peer", originPeer)
 		return pubsub.ValidationIgnore
 	}
 
@@ -519,9 +530,8 @@ func (v *IndexerMessageValidator) Validate(ctx context.Context, pid peer.ID, msg
 
 	msgCid := idxrMsg.Cid
 
-	var msgInfo *peerMsgInfo
-	msgInfo, ok := v.peerCache.Get(minerAddr)
-	if !ok {
+	msgInfo, cached := v.peerCache.Get(minerAddr)
+	if !cached {
 		msgInfo = &peerMsgInfo{}
 	}
 
@@ -529,26 +539,26 @@ func (v *IndexerMessageValidator) Validate(ctx context.Context, pid peer.ID, msg
 	msgInfo.mutex.Lock()
 	defer msgInfo.mutex.Unlock()
 
-	if ok {
+	var seqno uint64
+	if cached {
 		// Reject replayed messages.
-		seqno := binary.BigEndian.Uint64(msg.Message.GetSeqno())
+		seqno = binary.BigEndian.Uint64(msg.Message.GetSeqno())
 		if seqno <= msgInfo.lastSeqno {
 			log.Debugf("ignoring replayed indexer message")
 			return pubsub.ValidationIgnore
 		}
-		msgInfo.lastSeqno = seqno
 	}
 
-	if !ok || originPeer != msgInfo.peerID {
+	if !cached || originPeer != msgInfo.peerID {
 		// Check that the miner ID maps to the peer that sent the message.
 		err = v.authenticateMessage(ctx, minerAddr, originPeer)
 		if err != nil {
-			log.Warnw("cannot authenticate messsage", "err", err, "peer", originPeer, "minerID", minerAddr)
+			log.Warnw("cannot authenticate message", "err", err, "peer", originPeer, "minerID", minerAddr)
 			stats.Record(ctx, metrics.IndexerMessageValidationFailure.M(1))
 			return pubsub.ValidationReject
 		}
 		msgInfo.peerID = originPeer
-		if !ok {
+		if !cached {
 			// Add msgInfo to cache only after being authenticated.  If two
 			// messages from the same peer are handled concurrently, there is a
 			// small chance that one msgInfo could replace the other here when
@@ -556,6 +566,9 @@ func (v *IndexerMessageValidator) Validate(ctx context.Context, pid peer.ID, msg
 			v.peerCache.Add(minerAddr, msgInfo)
 		}
 	}
+
+	// Update message info cache with the latest message's sequence number.
+	msgInfo.lastSeqno = seqno
 
 	// See if message needs to be ignored due to rate limiting.
 	if v.rateLimitPeer(msgInfo, msgCid) {

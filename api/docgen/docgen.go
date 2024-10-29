@@ -16,8 +16,6 @@ import (
 	"github.com/google/uuid"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-graphsync"
-	textselector "github.com/ipld/go-ipld-selector-text-lite"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/metrics"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -27,9 +25,8 @@ import (
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-bitfield"
-	datatransfer "github.com/filecoin-project/go-data-transfer/v2"
-	"github.com/filecoin-project/go-fil-markets/filestore"
-	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
+	"github.com/filecoin-project/go-f3/certs"
+	"github.com/filecoin-project/go-f3/gpbft"
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/builtin/v9/verifreg"
@@ -40,10 +37,10 @@ import (
 	apitypes "github.com/filecoin-project/lotus/api/types"
 	"github.com/filecoin-project/lotus/api/v0api"
 	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/types/ethtypes"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
-	"github.com/filecoin-project/lotus/node/repo/imports"
 	sealing "github.com/filecoin-project/lotus/storage/pipeline"
 	"github.com/filecoin-project/lotus/storage/sealer/sealtasks"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
@@ -95,11 +92,6 @@ func init() {
 	addExample(pid)
 	addExample(&pid)
 
-	storeIDExample := imports.ID(50)
-	textSelExample := textselector.Expression("Links/21/Hash/Links/42/Hash")
-	apiSelExample := api.Selector("Links/21/Hash/Links/42/Hash")
-	clientEvent := retrievalmarket.ClientEventDealAccepted
-
 	block := blocks.Block(&blocks.BasicBlock{})
 	ExampleValues[reflect.TypeOf(&block).Elem()] = block
 
@@ -129,22 +121,13 @@ func init() {
 	addExample(api.FullAPIVersion1)
 	addExample(api.PCHInbound)
 	addExample(time.Minute)
-	addExample(graphsync.NewRequestID())
-	addExample(datatransfer.TransferID(3))
-	addExample(datatransfer.Ongoing)
-	addExample(storeIDExample)
-	addExample(&storeIDExample)
-	addExample(clientEvent)
-	addExample(&clientEvent)
-	addExample(retrievalmarket.ClientEventDealAccepted)
-	addExample(retrievalmarket.DealStatusNew)
-	addExample(&textSelExample)
-	addExample(&apiSelExample)
+
 	addExample(network.ReachabilityPublic)
 	addExample(build.TestNetworkVersion)
 	allocationId := verifreg.AllocationId(0)
 	addExample(allocationId)
 	addExample(&allocationId)
+	addExample(miner.SectorOnChainInfoFlags(0))
 	addExample(map[verifreg.AllocationId]verifreg.Allocation{})
 	claimId := verifreg.ClaimId(0)
 	addExample(claimId)
@@ -152,12 +135,13 @@ func init() {
 	addExample(map[verifreg.ClaimId]verifreg.Claim{})
 	addExample(map[string]int{"name": 42})
 	addExample(map[string]time.Time{"name": time.Unix(1615243938, 0).UTC()})
+	addExample(abi.ActorID(1000))
+	addExample(map[string]types.Actor{
+		"t01236": ExampleValue("init", reflect.TypeOf(types.Actor{}), nil).(types.Actor),
+	})
 	addExample(&types.ExecutionTrace{
 		Msg:    ExampleValue("init", reflect.TypeOf(types.MessageTrace{}), nil).(types.MessageTrace),
 		MsgRct: ExampleValue("init", reflect.TypeOf(types.ReturnTrace{}), nil).(types.ReturnTrace),
-	})
-	addExample(map[string]types.Actor{
-		"t01236": ExampleValue("init", reflect.TypeOf(types.Actor{}), nil).(types.Actor),
 	})
 	addExample(map[string]api.MarketDeal{
 		"t026363": ExampleValue("init", reflect.TypeOf(api.MarketDeal{}), nil).(api.MarketDeal),
@@ -203,11 +187,9 @@ func init() {
 	ExampleValues[reflect.TypeOf(struct{ A multiaddr.Multiaddr }{}).Field(0).Type] = maddr
 
 	// miner specific
-	addExample(filestore.Path(".lotusminer/fstmp123"))
+
 	si := uint64(12)
 	addExample(&si)
-	addExample(retrievalmarket.DealID(5))
-	addExample(abi.ActorID(1000))
 	addExample(map[string]cid.Cid{})
 	addExample(map[string][]api.SealedRef{
 		"98000": {
@@ -311,17 +293,8 @@ func init() {
 		api.SubsystemMining,
 		api.SubsystemSealing,
 		api.SubsystemSectorStorage,
-		api.SubsystemMarkets,
 	})
-	addExample(api.DagstoreShardResult{
-		Key:   "baga6ea4seaqecmtz7iak33dsfshi627abz4i4665dfuzr3qfs4bmad6dx3iigdq",
-		Error: "<error>",
-	})
-	addExample(api.DagstoreShardInfo{
-		Key:   "baga6ea4seaqecmtz7iak33dsfshi627abz4i4665dfuzr3qfs4bmad6dx3iigdq",
-		State: "ShardStateAvailable",
-		Error: "<error>",
-	})
+
 	addExample(storiface.ResourceTable)
 	addExample(network.ScopeStat{
 		Memory:             123,
@@ -354,10 +327,6 @@ func init() {
 
 	addExample(map[string]bitfield.BitField{
 		"": bitfield.NewFromSet([]uint64{5, 6, 7, 10}),
-	})
-	addExample(&api.RaftStateData{
-		NonceMap: make(map[address.Address]uint64),
-		MsgUuids: make(map[uuid.UUID]*types.SignedMessage),
 	})
 
 	addExample(http.Header{
@@ -406,6 +375,34 @@ func init() {
 	percent := types.Percent(123)
 	addExample(percent)
 	addExample(&percent)
+
+	addExample(&miner.PieceActivationManifest{
+		CID:                   c,
+		Size:                  2032,
+		VerifiedAllocationKey: nil,
+		Notify:                nil,
+	})
+
+	addExample(&types.ActorEventBlock{
+		Codec: 0x51,
+		Value: []byte("ddata"),
+	})
+
+	addExample(&types.ActorEventFilter{
+		Addresses: []address.Address{addr},
+		Fields: map[string][]types.ActorEventBlock{
+			"abc": {
+				{
+					Codec: 0x51,
+					Value: []byte("ddata"),
+				},
+			},
+		},
+		FromHeight: epochPtr(1010),
+		ToHeight:   epochPtr(1020),
+	})
+	addExample(&certs.FinalityCertificate{})
+	addExample(gpbft.ActorID(1000))
 }
 
 func GetAPIType(name, pkg string) (i interface{}, t reflect.Type, permStruct []reflect.Type) {
@@ -505,6 +502,11 @@ func exampleStruct(method string, t, parent reflect.Type) interface{} {
 	}
 
 	return ns.Interface()
+}
+
+func epochPtr(ei int64) *abi.ChainEpoch {
+	ep := abi.ChainEpoch(ei)
+	return &ep
 }
 
 type Visitor struct {

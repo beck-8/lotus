@@ -40,6 +40,10 @@ func CreateEthRPCAliases(as apitypes.Aliaser) {
 	as.AliasMethod("eth_subscribe", "Filecoin.EthSubscribe")
 	as.AliasMethod("eth_unsubscribe", "Filecoin.EthUnsubscribe")
 
+	as.AliasMethod("trace_block", "Filecoin.EthTraceBlock")
+	as.AliasMethod("trace_replayBlockTransactions", "Filecoin.EthTraceReplayBlockTransactions")
+	as.AliasMethod("trace_transaction", "Filecoin.EthTraceTransaction")
+
 	as.AliasMethod("net_version", "Filecoin.NetVersion")
 	as.AliasMethod("net_listening", "Filecoin.NetListening")
 

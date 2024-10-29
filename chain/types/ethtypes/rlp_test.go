@@ -143,6 +143,20 @@ func TestDecodeList(t *testing.T) {
 	}
 }
 
+func TestDecodeNegativeLength(t *testing.T) {
+	testcases := [][]byte{
+		mustDecodeHex("0xbfffffffffffffff0041424344"),
+		mustDecodeHex("0xc1bFFF1111111111111111"),
+		mustDecodeHex("0xbFFF11111111111111"),
+		mustDecodeHex("0xbf7fffffffffffffff41424344"),
+	}
+
+	for _, tc := range testcases {
+		_, err := DecodeRLP(tc)
+		require.ErrorContains(t, err, "invalid rlp data")
+	}
+}
+
 func TestDecodeEncodeTx(t *testing.T) {
 	testcases := [][]byte{
 		mustDecodeHex("0xdc82013a0185012a05f2008504a817c8008080872386f26fc1000000c0"),
@@ -178,7 +192,7 @@ func TestDecodeError(t *testing.T) {
 
 func TestDecode1(t *testing.T) {
 	b := mustDecodeHex("0x02f8758401df5e7680832c8411832c8411830767f89452963ef50e27e06d72d59fcb4f3c2a687be3cfef880de0b6b3a764000080c080a094b11866f453ad85a980e0e8a2fc98cbaeb4409618c7734a7e12ae2f66fd405da042dbfb1b37af102023830ceeee0e703ffba0b8b3afeb8fe59f405eca9ed61072")
-	decoded, err := ParseEthTxArgs(b)
+	decoded, err := parseEip1559Tx(b)
 	require.NoError(t, err)
 
 	sender, err := decoded.Sender()

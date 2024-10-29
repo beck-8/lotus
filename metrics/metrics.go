@@ -74,22 +74,6 @@ var (
 	PeerCount          = stats.Int64("peer/count", "Current number of FIL peers", stats.UnitDimensionless)
 	APIRequestDuration = stats.Float64("api/request_duration_ms", "Duration of API requests", stats.UnitMilliseconds)
 
-	// graphsync
-
-	GraphsyncReceivingPeersCount              = stats.Int64("graphsync/receiving_peers", "number of peers we are receiving graphsync data from", stats.UnitDimensionless)
-	GraphsyncReceivingActiveCount             = stats.Int64("graphsync/receiving_active", "number of active receiving graphsync transfers", stats.UnitDimensionless)
-	GraphsyncReceivingCountCount              = stats.Int64("graphsync/receiving_pending", "number of pending receiving graphsync transfers", stats.UnitDimensionless)
-	GraphsyncReceivingTotalMemoryAllocated    = stats.Int64("graphsync/receiving_total_allocated", "amount of block memory allocated for receiving graphsync data", stats.UnitBytes)
-	GraphsyncReceivingTotalPendingAllocations = stats.Int64("graphsync/receiving_pending_allocations", "amount of block memory on hold being received pending allocation", stats.UnitBytes)
-	GraphsyncReceivingPeersPending            = stats.Int64("graphsync/receiving_peers_pending", "number of peers we can't receive more data from cause of pending allocations", stats.UnitDimensionless)
-
-	GraphsyncSendingPeersCount              = stats.Int64("graphsync/sending_peers", "number of peers we are sending graphsync data to", stats.UnitDimensionless)
-	GraphsyncSendingActiveCount             = stats.Int64("graphsync/sending_active", "number of active sending graphsync transfers", stats.UnitDimensionless)
-	GraphsyncSendingCountCount              = stats.Int64("graphsync/sending_pending", "number of pending sending graphsync transfers", stats.UnitDimensionless)
-	GraphsyncSendingTotalMemoryAllocated    = stats.Int64("graphsync/sending_total_allocated", "amount of block memory allocated for sending graphsync data", stats.UnitBytes)
-	GraphsyncSendingTotalPendingAllocations = stats.Int64("graphsync/sending_pending_allocations", "amount of block memory on hold from sending pending allocation", stats.UnitBytes)
-	GraphsyncSendingPeersPending            = stats.Int64("graphsync/sending_peers_pending", "number of peers we can't send more data to cause of pending allocations", stats.UnitDimensionless)
-
 	// chain
 	ChainNodeHeight                     = stats.Int64("chain/node_height", "Current Height of the node", stats.UnitDimensionless)
 	ChainNodeHeightExpected             = stats.Int64("chain/node_height_expected", "Expected Height of the node", stats.UnitDimensionless)
@@ -106,6 +90,7 @@ var (
 	MpoolAddTsDuration                  = stats.Float64("mpool/addts_ms", "Duration of addTs in mpool", stats.UnitMilliseconds)
 	MpoolAddDuration                    = stats.Float64("mpool/add_ms", "Duration of Add in mpool", stats.UnitMilliseconds)
 	MpoolPushDuration                   = stats.Float64("mpool/push_ms", "Duration of Push in mpool", stats.UnitMilliseconds)
+	MpoolMessageCount                   = stats.Int64("mpool/message_count", "Number of messages in the mpool", stats.UnitDimensionless)
 	BlockPublished                      = stats.Int64("block/published", "Counter for total locally published blocks", stats.UnitDimensionless)
 	BlockReceived                       = stats.Int64("block/received", "Counter for total received blocks", stats.UnitDimensionless)
 	BlockValidationFailure              = stats.Int64("block/failure", "Counter for block validation failures", stats.UnitDimensionless)
@@ -116,6 +101,7 @@ var (
 	PubsubDeliverMessage                = stats.Int64("pubsub/delivered", "Counter for total delivered messages", stats.UnitDimensionless)
 	PubsubRejectMessage                 = stats.Int64("pubsub/rejected", "Counter for total rejected messages", stats.UnitDimensionless)
 	PubsubDuplicateMessage              = stats.Int64("pubsub/duplicate", "Counter for total duplicate messages", stats.UnitDimensionless)
+	PubsubPruneMessage                  = stats.Int64("pubsub/prune", "Counter for total prune messages", stats.UnitDimensionless)
 	PubsubRecvRPC                       = stats.Int64("pubsub/recv_rpc", "Counter for total received RPCs", stats.UnitDimensionless)
 	PubsubSendRPC                       = stats.Int64("pubsub/send_rpc", "Counter for total sent RPCs", stats.UnitDimensionless)
 	PubsubDropRPC                       = stats.Int64("pubsub/drop_rpc", "Counter for total dropped RPCs", stats.UnitDimensionless)
@@ -188,11 +174,11 @@ var (
 	RcmgrAllowPeer      = stats.Int64("rcmgr/allow_peer", "Number of allowed peer connections", stats.UnitDimensionless)
 	RcmgrBlockPeer      = stats.Int64("rcmgr/block_peer", "Number of blocked peer connections", stats.UnitDimensionless)
 	RcmgrAllowProto     = stats.Int64("rcmgr/allow_proto", "Number of allowed streams attached to a protocol", stats.UnitDimensionless)
-	RcmgrBlockProto     = stats.Int64("rcmgr/block_proto", "Number of blocked blocked streams attached to a protocol", stats.UnitDimensionless)
-	RcmgrBlockProtoPeer = stats.Int64("rcmgr/block_proto", "Number of blocked blocked streams attached to a protocol for a specific peer", stats.UnitDimensionless)
+	RcmgrBlockProto     = stats.Int64("rcmgr/block_proto", "Number of blocked streams attached to a protocol", stats.UnitDimensionless)
+	RcmgrBlockProtoPeer = stats.Int64("rcmgr/block_proto", "Number of blocked streams attached to a protocol for a specific peer", stats.UnitDimensionless)
 	RcmgrAllowSvc       = stats.Int64("rcmgr/allow_svc", "Number of allowed streams attached to a service", stats.UnitDimensionless)
-	RcmgrBlockSvc       = stats.Int64("rcmgr/block_svc", "Number of blocked blocked streams attached to a service", stats.UnitDimensionless)
-	RcmgrBlockSvcPeer   = stats.Int64("rcmgr/block_svc", "Number of blocked blocked streams attached to a service for a specific peer", stats.UnitDimensionless)
+	RcmgrBlockSvc       = stats.Int64("rcmgr/block_svc", "Number of blocked streams attached to a service", stats.UnitDimensionless)
+	RcmgrBlockSvcPeer   = stats.Int64("rcmgr/block_svc", "Number of blocked streams attached to a service for a specific peer", stats.UnitDimensionless)
 	RcmgrAllowMem       = stats.Int64("rcmgr/allow_mem", "Number of allowed memory reservations", stats.UnitDimensionless)
 	RcmgrBlockMem       = stats.Int64("rcmgr/block_mem", "Number of blocked memory reservations", stats.UnitDimensionless)
 
@@ -306,6 +292,10 @@ var (
 		Measure:     MpoolPushDuration,
 		Aggregation: defaultMillisecondsDistribution,
 	}
+	MpoolMessageCountView = &view.View{
+		Measure:     MpoolMessageCount,
+		Aggregation: view.LastValue(),
+	}
 	PeerCountView = &view.View{
 		Measure:     PeerCount,
 		Aggregation: view.LastValue(),
@@ -324,6 +314,10 @@ var (
 	}
 	PubsubDuplicateMessageView = &view.View{
 		Measure:     PubsubDuplicateMessage,
+		Aggregation: view.Count(),
+	}
+	PubsubPruneMessageView = &view.View{
+		Measure:     PubsubPruneMessage,
 		Aggregation: view.Count(),
 	}
 	PubsubRecvRPCView = &view.View{
@@ -570,56 +564,6 @@ var (
 		Aggregation: view.Sum(),
 	}
 
-	// graphsync
-	GraphsyncReceivingPeersCountView = &view.View{
-		Measure:     GraphsyncReceivingPeersCount,
-		Aggregation: view.LastValue(),
-	}
-	GraphsyncReceivingActiveCountView = &view.View{
-		Measure:     GraphsyncReceivingActiveCount,
-		Aggregation: view.LastValue(),
-	}
-	GraphsyncReceivingCountCountView = &view.View{
-		Measure:     GraphsyncReceivingCountCount,
-		Aggregation: view.LastValue(),
-	}
-	GraphsyncReceivingTotalMemoryAllocatedView = &view.View{
-		Measure:     GraphsyncReceivingTotalMemoryAllocated,
-		Aggregation: view.LastValue(),
-	}
-	GraphsyncReceivingTotalPendingAllocationsView = &view.View{
-		Measure:     GraphsyncReceivingTotalPendingAllocations,
-		Aggregation: view.LastValue(),
-	}
-	GraphsyncReceivingPeersPendingView = &view.View{
-		Measure:     GraphsyncReceivingPeersPending,
-		Aggregation: view.LastValue(),
-	}
-	GraphsyncSendingPeersCountView = &view.View{
-		Measure:     GraphsyncSendingPeersCount,
-		Aggregation: view.LastValue(),
-	}
-	GraphsyncSendingActiveCountView = &view.View{
-		Measure:     GraphsyncSendingActiveCount,
-		Aggregation: view.LastValue(),
-	}
-	GraphsyncSendingCountCountView = &view.View{
-		Measure:     GraphsyncSendingCountCount,
-		Aggregation: view.LastValue(),
-	}
-	GraphsyncSendingTotalMemoryAllocatedView = &view.View{
-		Measure:     GraphsyncSendingTotalMemoryAllocated,
-		Aggregation: view.LastValue(),
-	}
-	GraphsyncSendingTotalPendingAllocationsView = &view.View{
-		Measure:     GraphsyncSendingTotalPendingAllocations,
-		Aggregation: view.LastValue(),
-	}
-	GraphsyncSendingPeersPendingView = &view.View{
-		Measure:     GraphsyncSendingPeersPending,
-		Aggregation: view.LastValue(),
-	}
-
 	// rcmgr
 	RcmgrAllowConnView = &view.View{
 		Measure:     RcmgrAllowConn,
@@ -695,45 +639,41 @@ var (
 	}
 )
 
+var views = []*view.View{
+	InfoView,
+	PeerCountView,
+	APIRequestDurationView,
+
+	RcmgrAllowConnView,
+	RcmgrBlockConnView,
+	RcmgrAllowStreamView,
+	RcmgrBlockStreamView,
+	RcmgrAllowPeerView,
+	RcmgrBlockPeerView,
+	RcmgrAllowProtoView,
+	RcmgrBlockProtoView,
+	RcmgrBlockProtoPeerView,
+	RcmgrAllowSvcView,
+	RcmgrBlockSvcView,
+	RcmgrBlockSvcPeerView,
+	RcmgrAllowMemView,
+	RcmgrBlockMemView,
+}
+
 // DefaultViews is an array of OpenCensus views for metric gathering purposes
 var DefaultViews = func() []*view.View {
-	views := []*view.View{
-		InfoView,
-		PeerCountView,
-		APIRequestDurationView,
-
-		GraphsyncReceivingPeersCountView,
-		GraphsyncReceivingActiveCountView,
-		GraphsyncReceivingCountCountView,
-		GraphsyncReceivingTotalMemoryAllocatedView,
-		GraphsyncReceivingTotalPendingAllocationsView,
-		GraphsyncReceivingPeersPendingView,
-		GraphsyncSendingPeersCountView,
-		GraphsyncSendingActiveCountView,
-		GraphsyncSendingCountCountView,
-		GraphsyncSendingTotalMemoryAllocatedView,
-		GraphsyncSendingTotalPendingAllocationsView,
-		GraphsyncSendingPeersPendingView,
-
-		RcmgrAllowConnView,
-		RcmgrBlockConnView,
-		RcmgrAllowStreamView,
-		RcmgrBlockStreamView,
-		RcmgrAllowPeerView,
-		RcmgrBlockPeerView,
-		RcmgrAllowProtoView,
-		RcmgrBlockProtoView,
-		RcmgrBlockProtoPeerView,
-		RcmgrAllowSvcView,
-		RcmgrBlockSvcView,
-		RcmgrBlockSvcPeerView,
-		RcmgrAllowMemView,
-		RcmgrBlockMemView,
-	}
-	views = append(views, blockstore.DefaultViews...)
-	views = append(views, rpcmetrics.DefaultViews...)
 	return views
 }()
+
+// RegisterViews adds views to the default list without modifying this file.
+func RegisterViews(v ...*view.View) {
+	views = append(views, v...)
+}
+
+func init() {
+	RegisterViews(blockstore.DefaultViews...)
+	RegisterViews(rpcmetrics.DefaultViews...)
+}
 
 var ChainNodeViews = append([]*view.View{
 	ChainNodeHeightView,
@@ -756,10 +696,12 @@ var ChainNodeViews = append([]*view.View{
 	MpoolAddTsDurationView,
 	MpoolAddDurationView,
 	MpoolPushDurationView,
+	MpoolMessageCountView,
 	PubsubPublishMessageView,
 	PubsubDeliverMessageView,
 	PubsubRejectMessageView,
 	PubsubDuplicateMessageView,
+	PubsubPruneMessageView,
 	PubsubRecvRPCView,
 	PubsubSendRPCView,
 	PubsubDropRPCView,
@@ -827,7 +769,7 @@ var GatewayNodeViews = append([]*view.View{
 
 // SinceInMilliseconds returns the duration of time since the provide time as a float64.
 func SinceInMilliseconds(startTime time.Time) float64 {
-	return float64(time.Since(startTime).Nanoseconds()) / 1e6
+	return float64(time.Since(startTime).Milliseconds())
 }
 
 // Timer is a function stopwatch, calling it starts the timer,

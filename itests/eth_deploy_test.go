@@ -60,17 +60,20 @@ func TestDeployment(t *testing.T) {
 	// verify the deployer address is an Placeholder.
 	client.AssertActorType(ctx, deployer, manifest.PlaceholderKey)
 
-	gaslimit, err := client.EthEstimateGas(ctx, ethtypes.EthCall{
+	gasParams, err := json.Marshal(ethtypes.EthEstimateGasParams{Tx: ethtypes.EthCall{
 		From: &ethAddr,
 		Data: contract,
-	})
+	}})
+	require.NoError(t, err)
+
+	gaslimit, err := client.EthEstimateGas(ctx, gasParams)
 	require.NoError(t, err)
 
 	maxPriorityFeePerGas, err := client.EthMaxPriorityFeePerGas(ctx)
 	require.NoError(t, err)
 
 	// now deploy a contract from the placeholder, and validate it went well
-	tx := ethtypes.EthTxArgs{
+	tx := ethtypes.Eth1559TxArgs{
 		ChainID:              build.Eip155ChainId,
 		Value:                big.Zero(),
 		Nonce:                0,

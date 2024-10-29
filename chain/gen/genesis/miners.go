@@ -18,6 +18,7 @@ import (
 	"github.com/filecoin-project/go-state-types/big"
 	builtintypes "github.com/filecoin-project/go-state-types/builtin"
 	power11 "github.com/filecoin-project/go-state-types/builtin/v11/power"
+	miner14 "github.com/filecoin-project/go-state-types/builtin/v14/miner"
 	minertypes "github.com/filecoin-project/go-state-types/builtin/v8/miner"
 	markettypes "github.com/filecoin-project/go-state-types/builtin/v9/market"
 	miner9 "github.com/filecoin-project/go-state-types/builtin/v9/miner"
@@ -41,6 +42,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/power"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/reward"
+	"github.com/filecoin-project/lotus/chain/actors/builtin/system"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/consensus"
 	lrand "github.com/filecoin-project/lotus/chain/rand"
@@ -136,7 +138,11 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sys vm.Syscal
 		i := i
 		m := m
 
-		spt, err := miner.SealProofTypeFromSectorSize(m.SectorSize, nv, synthetic)
+		variant := miner.SealProofVariant_Standard
+		if synthetic {
+			variant = miner.SealProofVariant_Synthetic
+		}
+		spt, err := miner.SealProofTypeFromSectorSize(m.SectorSize, nv, variant)
 		if err != nil {
 			return cid.Undef, err
 		}
@@ -251,7 +257,8 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sys vm.Syscal
 			}
 
 			params := &markettypes.PublishStorageDealsParams{}
-			for _, preseal := range m.Sectors {
+			for _, presealTmp := range m.Sectors {
+				preseal := presealTmp
 				preseal.Deal.VerifiedDeal = true
 				preseal.Deal.EndEpoch = minerInfos[i].presealExp
 				p := markettypes.ClientDealProposal{
@@ -373,13 +380,33 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sys vm.Syscal
 		// Commit sectors
 		{
 			for pi, preseal := range m.Sectors {
-				params := &minertypes.SectorPreCommitInfo{
-					SealProof:     preseal.ProofType,
-					SectorNumber:  preseal.SectorID,
-					SealedCID:     preseal.CommR,
-					SealRandEpoch: -1,
-					DealIDs:       []abi.DealID{minerInfos[i].dealIDs[pi]},
-					Expiration:    minerInfos[i].presealExp, // TODO: Allow setting externally!
+				var paramEnc []byte
+				var preCommitMethodNum abi.MethodNum
+				if nv >= network.Version22 {
+					paramEnc = mustEnc(&miner.PreCommitSectorBatchParams2{
+						Sectors: []miner.SectorPreCommitInfo{
+							{
+								SealProof:     preseal.ProofType,
+								SectorNumber:  preseal.SectorID,
+								SealedCID:     preseal.CommR,
+								SealRandEpoch: -1,
+								DealIDs:       []abi.DealID{minerInfos[i].dealIDs[pi]},
+								Expiration:    minerInfos[i].presealExp, // TODO: Allow setting externally!
+								UnsealedCid:   &preseal.CommD,
+							},
+						},
+					})
+					preCommitMethodNum = builtintypes.MethodsMiner.PreCommitSectorBatch2
+				} else {
+					paramEnc = mustEnc(&minertypes.SectorPreCommitInfo{
+						SealProof:     preseal.ProofType,
+						SectorNumber:  preseal.SectorID,
+						SealedCID:     preseal.CommR,
+						SealRandEpoch: -1,
+						DealIDs:       []abi.DealID{minerInfos[i].dealIDs[pi]},
+						Expiration:    minerInfos[i].presealExp, // TODO: Allow setting externally!
+					})
+					preCommitMethodNum = builtintypes.MethodsMiner.PreCommitSector
 				}
 
 				sectorWeight := minerInfos[i].sectorWeight[pi]
@@ -462,7 +489,7 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sys vm.Syscal
 
 				pledge = big.Add(pcd, pledge)
 
-				_, err = doExecValue(ctx, genesisVm, minerInfos[i].maddr, m.Worker, pledge, builtintypes.MethodsMiner.PreCommitSector, mustEnc(params))
+				_, err = doExecValue(ctx, genesisVm, minerInfos[i].maddr, m.Worker, pledge, preCommitMethodNum, paramEnc)
 				if err != nil {
 					return cid.Undef, xerrors.Errorf("failed to confirm presealed sectors: %w", err)
 				}
@@ -470,7 +497,12 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sys vm.Syscal
 				// Commit one-by-one, otherwise pledge math tends to explode
 				var paramBytes []byte
 
-				if av >= actorstypes.Version6 {
+				if av >= actorstypes.Version14 {
+					confirmParams := &miner14.InternalSectorSetupForPresealParams{
+						Sectors: []abi.SectorNumber{preseal.SectorID},
+					}
+					paramBytes = mustEnc(confirmParams)
+				} else if av >= actorstypes.Version6 {
 					// TODO: fixup
 					confirmParams := &builtin6.ConfirmSectorProofsParams{
 						Sectors: []abi.SectorNumber{preseal.SectorID},
@@ -485,9 +517,17 @@ func SetupStorageMiners(ctx context.Context, cs *store.ChainStore, sys vm.Syscal
 					paramBytes = mustEnc(confirmParams)
 				}
 
-				_, err = doExecValue(ctx, genesisVm, minerInfos[i].maddr, power.Address, big.Zero(), builtintypes.MethodsMiner.ConfirmSectorProofsValid, paramBytes)
-				if err != nil {
-					return cid.Undef, xerrors.Errorf("failed to confirm presealed sectors: %w", err)
+				var csErr error
+				if nv >= network.Version23 {
+					_, csErr = doExecValue(ctx, genesisVm, minerInfos[i].maddr, system.Address, big.Zero(), builtintypes.MethodsMiner.InternalSectorSetupForPreseal,
+						paramBytes)
+				} else {
+					_, csErr = doExecValue(ctx, genesisVm, minerInfos[i].maddr, power.Address, big.Zero(), builtintypes.MethodsMiner.InternalSectorSetupForPreseal,
+						paramBytes)
+				}
+
+				if csErr != nil {
+					return cid.Undef, xerrors.Errorf("failed to confirm presealed sectors: %w", csErr)
 				}
 
 				if av >= actorstypes.Version2 {

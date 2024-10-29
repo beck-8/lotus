@@ -33,7 +33,6 @@ import (
 	_ "github.com/filecoin-project/lotus/lib/sigs/bls"
 	_ "github.com/filecoin-project/lotus/lib/sigs/delegated"
 	_ "github.com/filecoin-project/lotus/lib/sigs/secp"
-	"github.com/filecoin-project/lotus/markets/storageadapter"
 	"github.com/filecoin-project/lotus/node/config"
 	"github.com/filecoin-project/lotus/node/impl/common"
 	"github.com/filecoin-project/lotus/node/impl/net"
@@ -69,9 +68,7 @@ var (
 	AutoNATSvcKey        = special{10} // Libp2p option
 	BandwidthReporterKey = special{11} // Libp2p option
 	ConnGaterKey         = special{12} // Libp2p option
-	DAGStoreKey          = special{13} // constructor returns multiple values
 	ResourceManagerKey   = special{14} // Libp2p option
-	UserAgentKey         = special{15} // Libp2p option
 )
 
 type invoke int
@@ -90,7 +87,7 @@ const (
 	// health checks
 	CheckFDLimit
 	CheckFvmConcurrency
-	LegacyMarketsEOL
+	CheckUDPBufferSize
 
 	// libp2p
 	PstoreAddSelfKeysKey
@@ -102,12 +99,10 @@ const (
 
 	RunHelloKey
 	RunChainExchangeKey
-	RunChainGraphsync
 	RunPeerMgrKey
 
 	HandleIncomingBlocksKey
 	HandleIncomingMessagesKey
-	HandleMigrateClientFundsKey
 	HandlePaymentChannelManagerKey
 
 	RelayIndexerMessagesKey
@@ -119,6 +114,7 @@ const (
 	HandleDealsKey
 	HandleRetrievalKey
 	RunSectorServiceKey
+	F3Participation
 
 	// daemon
 	ExtractApiKey
@@ -126,7 +122,6 @@ const (
 	SettlePaymentChannelsKey
 	RunPeerTaggerKey
 	SetupFallbackBlockstoresKey
-	GoRPCServer
 
 	ConsensusReporterKey
 
@@ -169,6 +164,7 @@ func defaults() []Option {
 
 		Override(CheckFDLimit, modules.CheckFdLimit(build.DefaultFDLimit)),
 		Override(CheckFvmConcurrency, modules.CheckFvmConcurrency()),
+		Override(CheckUDPBufferSize, modules.CheckUDPBufferSize(2048*1024)),
 
 		Override(new(system.MemoryConstraints), modules.MemoryConstraints),
 		Override(InitMemoryWatchdog, modules.MemoryWatchdog),
@@ -265,12 +261,13 @@ func Base() Option {
 }
 
 // Config sets up constructors based on the provided Config
-func ConfigCommon(cfg *config.Common, enableLibp2pNode bool) Option {
+func ConfigCommon(cfg *config.Common, buildVersion build.BuildVersion, enableLibp2pNode bool) Option {
 	// setup logging early
 	lotuslog.SetLevelsFromConfig(cfg.Logging.SubsystemLevels)
 
 	return Options(
 		func(s *Settings) error { s.Config = true; return nil },
+		Override(new(build.BuildVersion), buildVersion),
 		Override(new(dtypes.APIEndpoint), func() (dtypes.APIEndpoint, error) {
 			return multiaddr.NewMultiaddr(cfg.API.ListenAddress)
 		}),
@@ -395,7 +392,6 @@ func Test() Option {
 		Unset(RunPeerMgrKey),
 		Unset(new(*peermgr.PeerMgr)),
 		Override(new(beacon.Schedule), testing.RandomBeacon),
-		Override(new(*storageadapter.DealPublisher), storageadapter.NewDealPublisher(nil, storageadapter.PublishMsgConfig{})),
 		Override(new(index.MsgIndex), modules.DummyMsgIndex),
 	)
 }

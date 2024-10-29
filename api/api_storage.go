@@ -7,14 +7,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ipfs/go-cid"
-	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-bitfield"
-	datatransfer "github.com/filecoin-project/go-data-transfer/v2"
-	"github.com/filecoin-project/go-fil-markets/piecestore"
-	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
-	"github.com/filecoin-project/go-fil-markets/storagemarket"
 	"github.com/filecoin-project/go-jsonrpc/auth"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
@@ -24,6 +19,7 @@ import (
 	builtinactors "github.com/filecoin-project/lotus/chain/actors/builtin"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/types"
+	"github.com/filecoin-project/lotus/storage/pipeline/piece"
 	"github.com/filecoin-project/lotus/storage/pipeline/sealiface"
 	"github.com/filecoin-project/lotus/storage/sealer/fsutil"
 	"github.com/filecoin-project/lotus/storage/sealer/storiface"
@@ -43,7 +39,6 @@ import (
 // StorageMiner is a low-level interface to the Filecoin network storage miner node
 type StorageMiner interface {
 	Common
-	Net
 
 	ActorAddress(context.Context) (address.Address, error) //perm:read
 
@@ -75,7 +70,7 @@ type StorageMiner interface {
 	// Add piece to an open sector. If no sectors with enough space are open,
 	// either a new sector will be created, or this call will block until more
 	// sectors can be created.
-	SectorAddPieceToAny(ctx context.Context, size abi.UnpaddedPieceSize, r storiface.Data, d PieceDealInfo) (SectorOffset, error) //perm:admin
+	SectorAddPieceToAny(ctx context.Context, size abi.UnpaddedPieceSize, r storiface.Data, d piece.PieceDealInfo) (SectorOffset, error) //perm:admin
 
 	SectorsUnsealPiece(ctx context.Context, sector storiface.SectorRef, offset storiface.UnpaddedByteIndex, size abi.UnpaddedPieceSize, randomness abi.SealRandomness, commd *cid.Cid) error //perm:admin
 
@@ -199,11 +194,11 @@ type StorageMiner interface {
 	// StorageBestAlloc returns list of paths where sector files of the specified type can be allocated, ordered by preference.
 	// Paths with more weight and more % of free space are preferred.
 	// Note: This method doesn't filter paths based on AllowTypes/DenyTypes.
-	StorageBestAlloc(ctx context.Context, allocate storiface.SectorFileType, ssize abi.SectorSize, pathType storiface.PathType) ([]storiface.StorageInfo, error) //perm:admin
-	StorageLock(ctx context.Context, sector abi.SectorID, read storiface.SectorFileType, write storiface.SectorFileType) error                                   //perm:admin
-	StorageTryLock(ctx context.Context, sector abi.SectorID, read storiface.SectorFileType, write storiface.SectorFileType) (bool, error)                        //perm:admin
-	StorageList(ctx context.Context) (map[storiface.ID][]storiface.Decl, error)                                                                                  //perm:admin
-	StorageGetLocks(ctx context.Context) (storiface.SectorLocks, error)                                                                                          //perm:admin
+	StorageBestAlloc(ctx context.Context, allocate storiface.SectorFileType, ssize abi.SectorSize, pathType storiface.PathType, miner abi.ActorID) ([]storiface.StorageInfo, error) //perm:admin
+	StorageLock(ctx context.Context, sector abi.SectorID, read storiface.SectorFileType, write storiface.SectorFileType) error                                                      //perm:admin
+	StorageTryLock(ctx context.Context, sector abi.SectorID, read storiface.SectorFileType, write storiface.SectorFileType) (bool, error)                                           //perm:admin
+	StorageList(ctx context.Context) (map[storiface.ID][]storiface.Decl, error)                                                                                                     //perm:admin
+	StorageGetLocks(ctx context.Context) (storiface.SectorLocks, error)                                                                                                             //perm:admin
 
 	StorageLocal(ctx context.Context) (map[storiface.ID]string, error)       //perm:admin
 	StorageStat(ctx context.Context, id storiface.ID) (fsutil.FsStat, error) //perm:admin
@@ -214,109 +209,11 @@ type StorageMiner interface {
 	StorageDetachLocal(ctx context.Context, path string) error                           //perm:admin
 	StorageRedeclareLocal(ctx context.Context, id *storiface.ID, dropMissing bool) error //perm:admin
 
-	MarketImportDealData(ctx context.Context, propcid cid.Cid, path string) error //perm:write
-	MarketListDeals(ctx context.Context) ([]*MarketDeal, error)                   //perm:read
-
-	// MarketListRetrievalDeals is deprecated, returns empty list
-	MarketListRetrievalDeals(ctx context.Context) ([]struct{}, error)                                                                                                                    //perm:read
-	MarketGetDealUpdates(ctx context.Context) (<-chan storagemarket.MinerDeal, error)                                                                                                    //perm:read
-	MarketListIncompleteDeals(ctx context.Context) ([]storagemarket.MinerDeal, error)                                                                                                    //perm:read
-	MarketSetAsk(ctx context.Context, price types.BigInt, verifiedPrice types.BigInt, duration abi.ChainEpoch, minPieceSize abi.PaddedPieceSize, maxPieceSize abi.PaddedPieceSize) error //perm:admin
-	MarketGetAsk(ctx context.Context) (*storagemarket.SignedStorageAsk, error)                                                                                                           //perm:read
-	MarketSetRetrievalAsk(ctx context.Context, rask *retrievalmarket.Ask) error                                                                                                          //perm:admin
-	MarketGetRetrievalAsk(ctx context.Context) (*retrievalmarket.Ask, error)                                                                                                             //perm:read
-	MarketListDataTransfers(ctx context.Context) ([]DataTransferChannel, error)                                                                                                          //perm:write
-	MarketDataTransferUpdates(ctx context.Context) (<-chan DataTransferChannel, error)                                                                                                   //perm:write
-	// MarketDataTransferDiagnostics generates debugging information about current data transfers over graphsync
-	MarketDataTransferDiagnostics(ctx context.Context, p peer.ID) (*TransferDiagnostics, error) //perm:write
-	// MarketRestartDataTransfer attempts to restart a data transfer with the given transfer ID and other peer
-	MarketRestartDataTransfer(ctx context.Context, transferID datatransfer.TransferID, otherPeer peer.ID, isInitiator bool) error //perm:write
-	// MarketCancelDataTransfer cancels a data transfer with the given transfer ID and other peer
-	MarketCancelDataTransfer(ctx context.Context, transferID datatransfer.TransferID, otherPeer peer.ID, isInitiator bool) error //perm:write
-	MarketPendingDeals(ctx context.Context) (PendingDealInfo, error)                                                             //perm:write
-	MarketPublishPendingDeals(ctx context.Context) error                                                                         //perm:admin
-	MarketRetryPublishDeal(ctx context.Context, propcid cid.Cid) error                                                           //perm:admin
-
-	// DagstoreListShards returns information about all shards known to the
-	// DAG store. Only available on nodes running the markets subsystem.
-	DagstoreListShards(ctx context.Context) ([]DagstoreShardInfo, error) //perm:read
-
-	// DagstoreInitializeShard initializes an uninitialized shard.
-	//
-	// Initialization consists of fetching the shard's data (deal payload) from
-	// the storage subsystem, generating an index, and persisting the index
-	// to facilitate later retrievals, and/or to publish to external sources.
-	//
-	// This operation is intended to complement the initial migration. The
-	// migration registers a shard for every unique piece CID, with lazy
-	// initialization. Thus, shards are not initialized immediately to avoid
-	// IO activity competing with proving. Instead, shard are initialized
-	// when first accessed. This method forces the initialization of a shard by
-	// accessing it and immediately releasing it. This is useful to warm up the
-	// cache to facilitate subsequent retrievals, and to generate the indexes
-	// to publish them externally.
-	//
-	// This operation fails if the shard is not in ShardStateNew state.
-	// It blocks until initialization finishes.
-	DagstoreInitializeShard(ctx context.Context, key string) error //perm:write
-
-	// DagstoreRecoverShard attempts to recover a failed shard.
-	//
-	// This operation fails if the shard is not in ShardStateErrored state.
-	// It blocks until recovery finishes. If recovery failed, it returns the
-	// error.
-	DagstoreRecoverShard(ctx context.Context, key string) error //perm:write
-
-	// DagstoreInitializeAll initializes all uninitialized shards in bulk,
-	// according to the policy passed in the parameters.
-	//
-	// It is recommended to set a maximum concurrency to avoid extreme
-	// IO pressure if the storage subsystem has a large amount of deals.
-	//
-	// It returns a stream of events to report progress.
-	DagstoreInitializeAll(ctx context.Context, params DagstoreInitializeAllParams) (<-chan DagstoreInitializeAllEvent, error) //perm:write
-
-	// DagstoreGC runs garbage collection on the DAG store.
-	DagstoreGC(ctx context.Context) ([]DagstoreShardResult, error) //perm:admin
-
-	// DagstoreRegisterShard registers a shard manually with dagstore with given pieceCID
-	DagstoreRegisterShard(ctx context.Context, key string) error //perm:admin
-
-	// IndexerAnnounceDeal informs indexer nodes that a new deal was received,
-	// so they can download its index
-	IndexerAnnounceDeal(ctx context.Context, proposalCid cid.Cid) error //perm:admin
-
-	// IndexerAnnounceAllDeals informs the indexer nodes aboutall active deals.
-	IndexerAnnounceAllDeals(ctx context.Context) error //perm:admin
-
-	// DagstoreLookupPieces returns information about shards that contain the given CID.
-	DagstoreLookupPieces(ctx context.Context, cid cid.Cid) ([]DagstoreShardInfo, error) //perm:admin
+	MarketListDeals(ctx context.Context) ([]*MarketDeal, error) //perm:read
 
 	// RuntimeSubsystems returns the subsystems that are enabled
 	// in this instance.
 	RuntimeSubsystems(ctx context.Context) (MinerSubsystems, error) //perm:read
-
-	DealsImportData(ctx context.Context, dealPropCid cid.Cid, file string) error //perm:admin
-	DealsList(ctx context.Context) ([]*MarketDeal, error)                        //perm:admin
-	DealsConsiderOnlineStorageDeals(context.Context) (bool, error)               //perm:admin
-	DealsSetConsiderOnlineStorageDeals(context.Context, bool) error              //perm:admin
-	DealsConsiderOnlineRetrievalDeals(context.Context) (bool, error)             //perm:admin
-	DealsSetConsiderOnlineRetrievalDeals(context.Context, bool) error            //perm:admin
-	DealsPieceCidBlocklist(context.Context) ([]cid.Cid, error)                   //perm:admin
-	DealsSetPieceCidBlocklist(context.Context, []cid.Cid) error                  //perm:admin
-	DealsConsiderOfflineStorageDeals(context.Context) (bool, error)              //perm:admin
-	DealsSetConsiderOfflineStorageDeals(context.Context, bool) error             //perm:admin
-	DealsConsiderOfflineRetrievalDeals(context.Context) (bool, error)            //perm:admin
-	DealsSetConsiderOfflineRetrievalDeals(context.Context, bool) error           //perm:admin
-	DealsConsiderVerifiedStorageDeals(context.Context) (bool, error)             //perm:admin
-	DealsSetConsiderVerifiedStorageDeals(context.Context, bool) error            //perm:admin
-	DealsConsiderUnverifiedStorageDeals(context.Context) (bool, error)           //perm:admin
-	DealsSetConsiderUnverifiedStorageDeals(context.Context, bool) error          //perm:admin
-
-	PiecesListPieces(ctx context.Context) ([]cid.Cid, error)                                 //perm:read
-	PiecesListCidInfos(ctx context.Context) ([]cid.Cid, error)                               //perm:read
-	PiecesGetPieceInfo(ctx context.Context, pieceCid cid.Cid) (*piecestore.PieceInfo, error) //perm:read
-	PiecesGetCIDInfo(ctx context.Context, payloadCid cid.Cid) (*piecestore.CIDInfo, error)   //perm:read
 
 	// CreateBackup creates node backup onder the specified file name. The
 	// method requires that the lotus-miner is running with the
@@ -353,9 +250,20 @@ type SectorLog struct {
 }
 
 type SectorPiece struct {
-	Piece    abi.PieceInfo
-	DealInfo *PieceDealInfo // nil for pieces which do not appear in deals (e.g. filler pieces)
+	Piece abi.PieceInfo
+
+	// DealInfo is nil for pieces which do not appear in deals (e.g. filler pieces)
+	// NOTE: DDO pieces which aren't associated with a market deal and have no
+	// verified allocation will still have a non-nil DealInfo.
+	// nil DealInfo indicates that the piece is a filler, and has zero piece commitment.
+	DealInfo *piece.PieceDealInfo
 }
+
+// DEPRECATED: Use piece.PieceDealInfo instead
+type PieceDealInfo = piece.PieceDealInfo
+
+// DEPRECATED: Use piece.DealSchedule instead
+type DealSchedule = piece.DealSchedule
 
 type SectorInfo struct {
 	SectorID             abi.SectorNumber
@@ -457,59 +365,6 @@ type PendingDealInfo struct {
 type SectorOffset struct {
 	Sector abi.SectorNumber
 	Offset abi.PaddedPieceSize
-}
-
-// DealInfo is a tuple of deal identity and its schedule
-type PieceDealInfo struct {
-	// "Old" builtin-market deal info
-	PublishCid   *cid.Cid
-	DealID       abi.DealID
-	DealProposal *market.DealProposal
-
-	// Common deal info
-	DealSchedule DealSchedule
-
-	// Best-effort deal asks
-	KeepUnsealed bool
-}
-
-// DealSchedule communicates the time interval of a storage deal. The deal must
-// appear in a sealed (proven) sector no later than StartEpoch, otherwise it
-// is invalid.
-type DealSchedule struct {
-	StartEpoch abi.ChainEpoch
-	EndEpoch   abi.ChainEpoch
-}
-
-// DagstoreShardInfo is the serialized form of dagstore.DagstoreShardInfo that
-// we expose through JSON-RPC to avoid clients having to depend on the
-// dagstore lib.
-type DagstoreShardInfo struct {
-	Key   string
-	State string
-	Error string
-}
-
-// DagstoreShardResult enumerates results per shard.
-type DagstoreShardResult struct {
-	Key     string
-	Success bool
-	Error   string
-}
-
-type DagstoreInitializeAllParams struct {
-	MaxConcurrency int
-	IncludeSealed  bool
-}
-
-// DagstoreInitializeAllEvent represents an initialization event.
-type DagstoreInitializeAllEvent struct {
-	Key     string
-	Event   string // "start", "end"
-	Success bool
-	Error   string
-	Total   int
-	Current int
 }
 
 type NumAssignerMeta struct {

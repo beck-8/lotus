@@ -1,8 +1,6 @@
 package config
 
 import (
-	"github.com/ipfs/go-cid"
-
 	"github.com/filecoin-project/lotus/chain/types"
 )
 
@@ -22,12 +20,11 @@ type Common struct {
 // FullNode is a full node config
 type FullNode struct {
 	Common
-	Client        Client
 	Wallet        Wallet
 	Fees          FeeConfig
 	Chainstore    Chainstore
-	Cluster       UserRaftConfig
 	Fevm          FevmConfig
+	Events        EventsConfig
 	Index         IndexConfig
 	FaultReporter FaultReporterConfig
 }
@@ -53,172 +50,67 @@ type Logging struct {
 type StorageMiner struct {
 	Common
 
-	Subsystems    MinerSubsystemConfig
-	Dealmaking    DealmakingConfig
-	IndexProvider IndexProviderConfig
-	Proving       ProvingConfig
-	Sealing       SealingConfig
-	Storage       SealerConfig
-	Fees          MinerFeeConfig
-	Addresses     MinerAddressConfig
-	DAGStore      DAGStoreConfig
+	Subsystems MinerSubsystemConfig
+	Dealmaking DealmakingConfig
+	Proving    ProvingConfig
+	Sealing    SealingConfig
+	Storage    SealerConfig
+	Fees       MinerFeeConfig
+	Addresses  MinerAddressConfig
+	HarmonyDB  HarmonyDB
 }
 
-type DAGStoreConfig struct {
-	// Path to the dagstore root directory. This directory contains three
-	// subdirectories, which can be symlinked to alternative locations if
-	// need be:
-	//  - ./transients: caches unsealed deals that have been fetched from the
-	//    storage subsystem for serving retrievals.
-	//  - ./indices: stores shard indices.
-	//  - ./datastore: holds the KV store tracking the state of every shard
-	//    known to the DAG store.
-	// Default value: <LOTUS_MARKETS_PATH>/dagstore (split deployment) or
-	// <LOTUS_MINER_PATH>/dagstore (monolith deployment)
-	RootDir string
+type ApisConfig struct {
+	// ChainApiInfo is the API endpoint for the Lotus daemon.
+	ChainApiInfo []string
 
-	// The maximum amount of indexing jobs that can run simultaneously.
-	// 0 means unlimited.
-	// Default value: 5.
-	MaxConcurrentIndex int
+	// RPC Secret for the storage subsystem.
+	// If integrating with lotus-miner this must match the value from
+	// cat ~/.lotusminer/keystore/MF2XI2BNNJ3XILLQOJUXMYLUMU | jq -r .PrivateKey
+	StorageRPCSecret string
+}
 
-	// The maximum amount of unsealed deals that can be fetched simultaneously
-	// from the storage subsystem. 0 means unlimited.
-	// Default value: 0 (unlimited).
-	MaxConcurrentReadyFetches int
-
-	// The maximum amount of unseals that can be processed simultaneously
-	// from the storage subsystem. 0 means unlimited.
-	// Default value: 0 (unlimited).
-	MaxConcurrentUnseals int
-
-	// The maximum number of simultaneous inflight API calls to the storage
-	// subsystem.
-	// Default value: 100.
-	MaxConcurrencyStorageCalls int
-
-	// The time between calls to periodic dagstore GC, in time.Duration string
-	// representation, e.g. 1m, 5m, 1h.
-	// Default value: 1 minute.
-	GCInterval Duration
+type JournalConfig struct {
+	//Events of the form: "system1:event1,system1:event2[,...]"
+	DisabledEvents string
 }
 
 type MinerSubsystemConfig struct {
 	EnableMining        bool
 	EnableSealing       bool
 	EnableSectorStorage bool
-	EnableMarkets       bool
+
+	// When enabled, the sector index will reside in an external database
+	// as opposed to the local KV store in the miner process
+	// This is useful to allow workers to bypass the lotus miner to access sector information
+	EnableSectorIndexDB bool
 
 	SealerApiInfo      string // if EnableSealing == false
 	SectorIndexApiInfo string // if EnableSectorStorage == false
+
+	// When window post is enabled, the miner will automatically submit window post proofs
+	// for all sectors that are eligible for window post
+	// IF WINDOW POST IS DISABLED, THE MINER WILL NOT SUBMIT WINDOW POST PROOFS
+	// THIS WILL RESULT IN FAULTS AND PENALTIES IF NO OTHER MECHANISM IS RUNNING
+	// TO SUBMIT WINDOW POST PROOFS.
+	// Note: This option is entirely disabling the window post scheduler,
+	//   not just the builtin PoSt computation like Proving.DisableBuiltinWindowPoSt.
+	//   This option will stop lotus-miner from performing any actions related
+	//   to window post, including scheduling, submitting proofs, and recovering
+	//   sectors.
+	DisableWindowPoSt bool
+
+	// When winning post is disabled, the miner process will NOT attempt to mine
+	// blocks. This should only be set when there's an external process mining
+	// blocks on behalf of the miner.
+	// When disabled and no external block producers are configured, all potential
+	// block rewards will be missed!
+	DisableWinningPoSt bool
 }
 
 type DealmakingConfig struct {
-	// When enabled, the miner can accept online deals
-	ConsiderOnlineStorageDeals bool
-	// When enabled, the miner can accept offline deals
-	ConsiderOfflineStorageDeals bool
-	// When enabled, the miner can accept retrieval deals
-	ConsiderOnlineRetrievalDeals bool
-	// When enabled, the miner can accept offline retrieval deals
-	ConsiderOfflineRetrievalDeals bool
-	// When enabled, the miner can accept verified deals
-	ConsiderVerifiedStorageDeals bool
-	// When enabled, the miner can accept unverified deals
-	ConsiderUnverifiedStorageDeals bool
-	// A list of Data CIDs to reject when making deals
-	PieceCidBlocklist []cid.Cid
-	// Maximum expected amount of time getting the deal into a sealed sector will take
-	// This includes the time the deal will need to get transferred and published
-	// before being assigned to a sector
-	ExpectedSealDuration Duration
-	// Maximum amount of time proposed deal StartEpoch can be in future
-	MaxDealStartDelay Duration
-	// When a deal is ready to publish, the amount of time to wait for more
-	// deals to be ready to publish before publishing them all as a batch
-	PublishMsgPeriod Duration
-	// The maximum number of deals to include in a single PublishStorageDeals
-	// message
-	MaxDealsPerPublishMsg uint64
-	// The maximum collateral that the provider will put up against a deal,
-	// as a multiplier of the minimum collateral bound
-	MaxProviderCollateralMultiplier uint64
-	// The maximum allowed disk usage size in bytes of staging deals not yet
-	// passed to the sealing node by the markets service. 0 is unlimited.
-	MaxStagingDealsBytes int64
-	// The maximum number of parallel online data transfers for storage deals
-	SimultaneousTransfersForStorage uint64
-	// The maximum number of simultaneous data transfers from any single client
-	// for storage deals.
-	// Unset by default (0), and values higher than SimultaneousTransfersForStorage
-	// will have no effect; i.e. the total number of simultaneous data transfers
-	// across all storage clients is bound by SimultaneousTransfersForStorage
-	// regardless of this number.
-	SimultaneousTransfersForStoragePerClient uint64
-	// The maximum number of parallel online data transfers for retrieval deals
-	SimultaneousTransfersForRetrieval uint64
 	// Minimum start epoch buffer to give time for sealing of sector with deal.
 	StartEpochSealingBuffer uint64
-
-	// A command used for fine-grained evaluation of storage deals
-	// see https://lotus.filecoin.io/storage-providers/advanced-configurations/market/#using-filters-for-fine-grained-storage-and-retrieval-deal-acceptance for more details
-	Filter string
-	// A command used for fine-grained evaluation of retrieval deals
-	// see https://lotus.filecoin.io/storage-providers/advanced-configurations/market/#using-filters-for-fine-grained-storage-and-retrieval-deal-acceptance for more details
-	RetrievalFilter string
-
-	RetrievalPricing *RetrievalPricing
-}
-
-type IndexProviderConfig struct {
-	// Enable set whether to enable indexing announcement to the network and expose endpoints that
-	// allow indexer nodes to process announcements. Enabled by default.
-	Enable bool
-
-	// EntriesCacheCapacity sets the maximum capacity to use for caching the indexing advertisement
-	// entries. Defaults to 1024 if not specified. The cache is evicted using LRU policy. The
-	// maximum storage used by the cache is a factor of EntriesCacheCapacity, EntriesChunkSize and
-	// the length of multihashes being advertised. For example, advertising 128-bit long multihashes
-	// with the default EntriesCacheCapacity, and EntriesChunkSize means the cache size can grow to
-	// 256MiB when full.
-	EntriesCacheCapacity int
-
-	// EntriesChunkSize sets the maximum number of multihashes to include in a single entries chunk.
-	// Defaults to 16384 if not specified. Note that chunks are chained together for indexing
-	// advertisements that include more multihashes than the configured EntriesChunkSize.
-	EntriesChunkSize int
-
-	// TopicName sets the topic name on which the changes to the advertised content are announced.
-	// If not explicitly specified, the topic name is automatically inferred from the network name
-	// in following format: '/indexer/ingest/<network-name>'
-	// Defaults to empty, which implies the topic name is inferred from network name.
-	TopicName string
-
-	// PurgeCacheOnStart sets whether to clear any cached entries chunks when the provider engine
-	// starts. By default, the cache is rehydrated from previously cached entries stored in
-	// datastore if any is present.
-	PurgeCacheOnStart bool
-}
-
-type RetrievalPricing struct {
-	Strategy string // possible values: "default", "external"
-
-	Default  *RetrievalPricingDefault
-	External *RetrievalPricingExternal
-}
-
-type RetrievalPricingExternal struct {
-	// Path of the external script that will be run to price a retrieval deal.
-	// This parameter is ONLY applicable if the retrieval pricing policy strategy has been configured to "external".
-	Path string
-}
-
-type RetrievalPricingDefault struct {
-	// VerifiedDealsFreeTransfer configures zero fees for data transfer for a retrieval deal
-	// of a payloadCid that belongs to a verified storage deal.
-	// This parameter is ONLY applicable if the retrieval pricing policy strategy has been configured to "default".
-	// default value is true
-	VerifiedDealsFreeTransfer bool
 }
 
 type ProvingConfig struct {
@@ -429,6 +321,15 @@ type SealingConfig struct {
 
 	// UseSyntheticPoRep, when set to true, will reduce the amount of cache data held on disk after the completion of PreCommit 2 to 11GiB.
 	UseSyntheticPoRep bool
+
+	// Whether to abort if any sector activation in a batch fails (newly sealed sectors, only with ProveCommitSectors3).
+	RequireActivationSuccess bool
+	// Whether to abort if any piece activation notification returns a non-zero exit code (newly sealed sectors, only with ProveCommitSectors3).
+	RequireActivationSuccessUpdate bool
+	// Whether to abort if any sector activation in a batch fails (updating sectors, only with ProveReplicaUpdates3).
+	RequireNotificationSuccess bool
+	// Whether to abort if any piece activation notification returns a non-zero exit code (updating sectors, only with ProveReplicaUpdates3).
+	RequireNotificationSuccessUpdate bool
 }
 
 type SealerConfig struct {
@@ -490,6 +391,8 @@ type MinerFeeConfig struct {
 	MaxWindowPoStGasFee    types.FIL
 	MaxPublishDealsFee     types.FIL
 	MaxMarketBalanceAddFee types.FIL
+
+	MaximizeWindowPoStFeeCap bool
 }
 
 type MinerAddressConfig struct {
@@ -585,7 +488,7 @@ type Chainstore struct {
 
 type Splitstore struct {
 	// ColdStoreType specifies the type of the coldstore.
-	// It can be "messages" (default) to store only messages, "universal" to store all chain state or "discard" for discarding cold blocks.
+	// It can be "discard" (default) for discarding cold blocks, "messages" to store only messages or "universal" to store all chain state..
 	ColdStoreType string
 	// HotStoreType specifies the type of the hotstore.
 	// Only currently supported value is "badger".
@@ -623,24 +526,6 @@ type Splitstore struct {
 }
 
 // // Full Node
-type Client struct {
-	UseIpfs             bool
-	IpfsOnlineMode      bool
-	IpfsMAddr           string
-	IpfsUseForRetrieval bool
-	// The maximum number of simultaneous data transfers between the client
-	// and storage providers for storage deals
-	SimultaneousTransfersForStorage uint64
-	// The maximum number of simultaneous data transfers between the client
-	// and storage providers for retrieval deals
-	SimultaneousTransfersForRetrieval uint64
-
-	// Require that retrievals perform no on-chain operations. Paid retrievals
-	// without existing payment channels with available funds will fail instead
-	// of automatically performing on-chain operations.
-	OffChainRetrieval bool
-}
-
 type Wallet struct {
 	RemoteBackend string
 	EnableLedger  bool
@@ -649,33 +534,6 @@ type Wallet struct {
 
 type FeeConfig struct {
 	DefaultMaxFee types.FIL
-}
-
-type UserRaftConfig struct {
-	// EXPERIMENTAL. config to enabled node cluster with raft consensus
-	ClusterModeEnabled bool
-	// A folder to store Raft's data.
-	DataFolder string
-	// InitPeersetMultiAddr provides the list of initial cluster peers for new Raft
-	// peers (with no prior state). It is ignored when Raft was already
-	// initialized or when starting in staging mode.
-	InitPeersetMultiAddr []string
-	// LeaderTimeout specifies how long to wait for a leader before
-	// failing an operation.
-	WaitForLeaderTimeout Duration
-	// NetworkTimeout specifies how long before a Raft network
-	// operation is timed out
-	NetworkTimeout Duration
-	// CommitRetries specifies how many times we retry a failed commit until
-	// we give up.
-	CommitRetries int
-	// How long to wait between retries
-	CommitRetryDelay Duration
-	// BackupsRotate specifies the maximum number of Raft's DataFolder
-	// copies that we keep as backups (renaming) after cleanup.
-	BackupsRotate int
-	// Tracing enables propagation of contexts across binary boundaries.
-	Tracing bool
 }
 
 type FevmConfig struct {
@@ -687,19 +545,47 @@ type FevmConfig struct {
 	// Set to 0 to keep all mappings
 	EthTxHashMappingLifetimeDays int
 
-	Events Events
+	Events DeprecatedEvents `toml:"Events,omitempty"`
 }
 
-type Events struct {
-	// EnableEthRPC enables APIs that
+type DeprecatedEvents struct {
+	// DisableRealTimeFilterAPI is DEPRECATED and will be removed in a future release. Use Events.DisableRealTimeFilterAPI instead.
+	DisableRealTimeFilterAPI bool `moved:"Events.DisableRealTimeFilterAPI" toml:"DisableRealTimeFilterAPI,omitempty"`
+
+	// DisableHistoricFilterAPI is DEPRECATED and will be removed in a future release. Use Events.DisableHistoricFilterAPI instead.
+	DisableHistoricFilterAPI bool `moved:"Events.DisableHistoricFilterAPI" toml:"DisableHistoricFilterAPI,omitempty"`
+
+	// FilterTTL is DEPRECATED and will be removed in a future release. Use Events.FilterTTL instead.
+	FilterTTL Duration `moved:"Events.FilterTTL" toml:"FilterTTL,omitzero"`
+
+	// MaxFilters is DEPRECATED and will be removed in a future release. Use Events.MaxFilters instead.
+	MaxFilters int `moved:"Events.MaxFilters" toml:"MaxFilters,omitzero"`
+
+	// MaxFilterResults is DEPRECATED and will be removed in a future release. Use Events.MaxFilterResults instead.
+	MaxFilterResults int `moved:"Events.MaxFilterResults" toml:"MaxFilterResults,omitzero"`
+
+	// MaxFilterHeightRange is DEPRECATED and will be removed in a future release. Use Events.MaxFilterHeightRange instead.
+	MaxFilterHeightRange uint64 `moved:"Events.MaxFilterHeightRange" toml:"MaxFilterHeightRange,omitzero"`
+
+	// DatabasePath is DEPRECATED and will be removed in a future release. Use Events.DatabasePath instead.
+	DatabasePath string `moved:"Events.DatabasePath" toml:"DatabasePath,omitempty"`
+}
+
+type EventsConfig struct {
 	// DisableRealTimeFilterAPI will disable the RealTimeFilterAPI that can create and query filters for actor events as they are emitted.
-	// The API is enabled when EnableEthRPC is true, but can be disabled selectively with this flag.
+	// The API is enabled when Fevm.EnableEthRPC or EnableActorEventsAPI is true, but can be disabled selectively with this flag.
 	DisableRealTimeFilterAPI bool
 
 	// DisableHistoricFilterAPI will disable the HistoricFilterAPI that can create and query filters for actor events
 	// that occurred in the past. HistoricFilterAPI maintains a queryable index of events.
-	// The API is enabled when EnableEthRPC is true, but can be disabled selectively with this flag.
+	// The API is enabled when Fevm.EnableEthRPC or EnableActorEventsAPI is true, but can be disabled selectively with this flag.
 	DisableHistoricFilterAPI bool
+
+	// EnableActorEventsAPI enables the Actor events API that enables clients to consume events
+	// emitted by (smart contracts + built-in Actors).
+	// This will also enable the RealTimeFilterAPI and HistoricFilterAPI by default, but they can be
+	// disabled by setting their respective Disable* options.
+	EnableActorEventsAPI bool
 
 	// FilterTTL specifies the time to live for actor event filters. Filters that haven't been accessed longer than
 	// this time become eligible for automatic deletion.
@@ -731,6 +617,24 @@ type IndexConfig struct {
 	// EXPERIMENTAL FEATURE. USE WITH CAUTION
 	// EnableMsgIndex enables indexing of messages on chain.
 	EnableMsgIndex bool
+}
+
+type HarmonyDB struct {
+	// HOSTS is a list of hostnames to nodes running YugabyteDB
+	// in a cluster. Only 1 is required
+	Hosts []string
+
+	// The Yugabyte server's username with full credentials to operate on Lotus' Database. Blank for default.
+	Username string
+
+	// The password for the related username. Blank for default.
+	Password string
+
+	// The database (logical partition) within Yugabyte. Blank for default.
+	Database string
+
+	// The port to find Yugabyte. Blank for default.
+	Port string
 }
 
 type FaultReporterConfig struct {

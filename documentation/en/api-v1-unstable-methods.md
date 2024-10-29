@@ -37,35 +37,6 @@
   * [ChainSetHead](#ChainSetHead)
   * [ChainStatObj](#ChainStatObj)
   * [ChainTipSetWeight](#ChainTipSetWeight)
-* [Client](#Client)
-  * [ClientCalcCommP](#ClientCalcCommP)
-  * [ClientCancelDataTransfer](#ClientCancelDataTransfer)
-  * [ClientCancelRetrievalDeal](#ClientCancelRetrievalDeal)
-  * [ClientDataTransferUpdates](#ClientDataTransferUpdates)
-  * [ClientDealPieceCID](#ClientDealPieceCID)
-  * [ClientDealSize](#ClientDealSize)
-  * [ClientExport](#ClientExport)
-  * [ClientFindData](#ClientFindData)
-  * [ClientGenCar](#ClientGenCar)
-  * [ClientGetDealInfo](#ClientGetDealInfo)
-  * [ClientGetDealStatus](#ClientGetDealStatus)
-  * [ClientGetDealUpdates](#ClientGetDealUpdates)
-  * [ClientGetRetrievalUpdates](#ClientGetRetrievalUpdates)
-  * [ClientHasLocal](#ClientHasLocal)
-  * [ClientImport](#ClientImport)
-  * [ClientListDataTransfers](#ClientListDataTransfers)
-  * [ClientListDeals](#ClientListDeals)
-  * [ClientListImports](#ClientListImports)
-  * [ClientListRetrievals](#ClientListRetrievals)
-  * [ClientMinerQueryOffer](#ClientMinerQueryOffer)
-  * [ClientQueryAsk](#ClientQueryAsk)
-  * [ClientRemoveImport](#ClientRemoveImport)
-  * [ClientRestartDataTransfer](#ClientRestartDataTransfer)
-  * [ClientRetrieve](#ClientRetrieve)
-  * [ClientRetrieveTryRestartInsufficientFunds](#ClientRetrieveTryRestartInsufficientFunds)
-  * [ClientRetrieveWait](#ClientRetrieveWait)
-  * [ClientStartDeal](#ClientStartDeal)
-  * [ClientStatelessDeal](#ClientStatelessDeal)
 * [Create](#Create)
   * [CreateBackup](#CreateBackup)
 * [Eth](#Eth)
@@ -104,8 +75,17 @@
   * [EthSendRawTransaction](#EthSendRawTransaction)
   * [EthSubscribe](#EthSubscribe)
   * [EthSyncing](#EthSyncing)
+  * [EthTraceBlock](#EthTraceBlock)
+  * [EthTraceReplayBlockTransactions](#EthTraceReplayBlockTransactions)
+  * [EthTraceTransaction](#EthTraceTransaction)
   * [EthUninstallFilter](#EthUninstallFilter)
   * [EthUnsubscribe](#EthUnsubscribe)
+* [F3](#F3)
+  * [F3GetCertificate](#F3GetCertificate)
+  * [F3GetECPowerTable](#F3GetECPowerTable)
+  * [F3GetF3PowerTable](#F3GetF3PowerTable)
+  * [F3GetLatestCertificate](#F3GetLatestCertificate)
+  * [F3Participate](#F3Participate)
 * [Filecoin](#Filecoin)
   * [FilecoinAddressToEthAddress](#FilecoinAddressToEthAddress)
 * [Gas](#Gas)
@@ -113,6 +93,8 @@
   * [GasEstimateGasLimit](#GasEstimateGasLimit)
   * [GasEstimateGasPremium](#GasEstimateGasPremium)
   * [GasEstimateMessageGas](#GasEstimateMessageGas)
+* [Get](#Get)
+  * [GetActorEventsRaw](#GetActorEventsRaw)
 * [I](#I)
   * [ID](#ID)
 * [Log](#Log)
@@ -209,9 +191,6 @@
   * [PaychVoucherCreate](#PaychVoucherCreate)
   * [PaychVoucherList](#PaychVoucherList)
   * [PaychVoucherSubmit](#PaychVoucherSubmit)
-* [Raft](#Raft)
-  * [RaftLeader](#RaftLeader)
-  * [RaftState](#RaftState)
 * [Start](#Start)
   * [StartTime](#StartTime)
 * [State](#State)
@@ -228,8 +207,11 @@
   * [StateDecodeParams](#StateDecodeParams)
   * [StateEncodeParams](#StateEncodeParams)
   * [StateGetActor](#StateGetActor)
+  * [StateGetAllAllocations](#StateGetAllAllocations)
+  * [StateGetAllClaims](#StateGetAllClaims)
   * [StateGetAllocation](#StateGetAllocation)
   * [StateGetAllocationForPendingDeal](#StateGetAllocationForPendingDeal)
+  * [StateGetAllocationIdForPendingDeal](#StateGetAllocationIdForPendingDeal)
   * [StateGetAllocations](#StateGetAllocations)
   * [StateGetBeaconEntry](#StateGetBeaconEntry)
   * [StateGetClaim](#StateGetClaim)
@@ -277,6 +259,8 @@
   * [StateVerifiedRegistryRootKey](#StateVerifiedRegistryRootKey)
   * [StateVerifierStatus](#StateVerifierStatus)
   * [StateWaitMsg](#StateWaitMsg)
+* [Subscribe](#Subscribe)
+  * [SubscribeActorEventsRaw](#SubscribeActorEventsRaw)
 * [Sync](#Sync)
   * [SyncCheckBad](#SyncCheckBad)
   * [SyncCheckpoint](#SyncCheckpoint)
@@ -1247,1054 +1231,6 @@ Inputs:
 
 Response: `"0"`
 
-## Client
-The Client methods all have to do with interacting with the storage and
-retrieval markets as a client
-
-
-### ClientCalcCommP
-ClientCalcCommP calculates the CommP for a specified file
-
-
-Perms: write
-
-Inputs:
-```json
-[
-  "string value"
-]
-```
-
-Response:
-```json
-{
-  "Root": {
-    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-  },
-  "Size": 1024
-}
-```
-
-### ClientCancelDataTransfer
-ClientCancelDataTransfer cancels a data transfer with the given transfer ID and other peer
-
-
-Perms: write
-
-Inputs:
-```json
-[
-  3,
-  "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-  true
-]
-```
-
-Response: `{}`
-
-### ClientCancelRetrievalDeal
-ClientCancelRetrievalDeal cancels an ongoing retrieval deal based on DealID
-
-
-Perms: write
-
-Inputs:
-```json
-[
-  5
-]
-```
-
-Response: `{}`
-
-### ClientDataTransferUpdates
-
-
-Perms: write
-
-Inputs: `null`
-
-Response:
-```json
-{
-  "TransferID": 3,
-  "Status": 1,
-  "BaseCID": {
-    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-  },
-  "IsInitiator": true,
-  "IsSender": true,
-  "Voucher": "string value",
-  "Message": "string value",
-  "OtherPeer": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-  "Transferred": 42,
-  "Stages": {
-    "Stages": [
-      {
-        "Name": "string value",
-        "Description": "string value",
-        "CreatedTime": "0001-01-01T00:00:00Z",
-        "UpdatedTime": "0001-01-01T00:00:00Z",
-        "Logs": [
-          {
-            "Log": "string value",
-            "UpdatedTime": "0001-01-01T00:00:00Z"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### ClientDealPieceCID
-ClientCalcCommP calculates the CommP and data size of the specified CID
-
-
-Perms: read
-
-Inputs:
-```json
-[
-  {
-    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-  }
-]
-```
-
-Response:
-```json
-{
-  "PayloadSize": 9,
-  "PieceSize": 1032,
-  "PieceCID": {
-    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-  }
-}
-```
-
-### ClientDealSize
-ClientDealSize calculates real deal data size
-
-
-Perms: read
-
-Inputs:
-```json
-[
-  {
-    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-  }
-]
-```
-
-Response:
-```json
-{
-  "PayloadSize": 9,
-  "PieceSize": 1032
-}
-```
-
-### ClientExport
-ClientExport exports a file stored in the local filestore to a system file
-
-
-Perms: admin
-
-Inputs:
-```json
-[
-  {
-    "Root": {
-      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-    },
-    "DAGs": [
-      {
-        "DataSelector": "Links/21/Hash/Links/42/Hash",
-        "ExportMerkleProof": true
-      }
-    ],
-    "FromLocalCAR": "string value",
-    "DealID": 5
-  },
-  {
-    "Path": "string value",
-    "IsCAR": true
-  }
-]
-```
-
-Response: `{}`
-
-### ClientFindData
-ClientFindData identifies peers that have a certain file, and returns QueryOffers (one per peer).
-
-
-Perms: read
-
-Inputs:
-```json
-[
-  {
-    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-  },
-  {
-    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-  }
-]
-```
-
-Response:
-```json
-[
-  {
-    "Err": "string value",
-    "Root": {
-      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-    },
-    "Piece": {
-      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-    },
-    "Size": 42,
-    "MinPrice": "0",
-    "UnsealPrice": "0",
-    "PricePerByte": "0",
-    "PaymentInterval": 42,
-    "PaymentIntervalIncrease": 42,
-    "Miner": "f01234",
-    "MinerPeer": {
-      "Address": "f01234",
-      "ID": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-      "PieceCID": {
-        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-      }
-    }
-  }
-]
-```
-
-### ClientGenCar
-ClientGenCar generates a CAR file for the specified file.
-
-
-Perms: write
-
-Inputs:
-```json
-[
-  {
-    "Path": "string value",
-    "IsCAR": true
-  },
-  "string value"
-]
-```
-
-Response: `{}`
-
-### ClientGetDealInfo
-ClientGetDealInfo returns the latest information about a given deal.
-
-
-Perms: read
-
-Inputs:
-```json
-[
-  {
-    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-  }
-]
-```
-
-Response:
-```json
-{
-  "ProposalCid": {
-    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-  },
-  "State": 42,
-  "Message": "string value",
-  "DealStages": {
-    "Stages": [
-      {
-        "Name": "string value",
-        "Description": "string value",
-        "ExpectedDuration": "string value",
-        "CreatedTime": "0001-01-01T00:00:00Z",
-        "UpdatedTime": "0001-01-01T00:00:00Z",
-        "Logs": [
-          {
-            "Log": "string value",
-            "UpdatedTime": "0001-01-01T00:00:00Z"
-          }
-        ]
-      }
-    ]
-  },
-  "Provider": "f01234",
-  "DataRef": {
-    "TransferType": "string value",
-    "Root": {
-      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-    },
-    "PieceCid": {
-      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-    },
-    "PieceSize": 1024,
-    "RawBlockSize": 42
-  },
-  "PieceCID": {
-    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-  },
-  "Size": 42,
-  "PricePerEpoch": "0",
-  "Duration": 42,
-  "DealID": 5432,
-  "CreationTime": "0001-01-01T00:00:00Z",
-  "Verified": true,
-  "TransferChannelID": {
-    "Initiator": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-    "Responder": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-    "ID": 3
-  },
-  "DataTransfer": {
-    "TransferID": 3,
-    "Status": 1,
-    "BaseCID": {
-      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-    },
-    "IsInitiator": true,
-    "IsSender": true,
-    "Voucher": "string value",
-    "Message": "string value",
-    "OtherPeer": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-    "Transferred": 42,
-    "Stages": {
-      "Stages": [
-        {
-          "Name": "string value",
-          "Description": "string value",
-          "CreatedTime": "0001-01-01T00:00:00Z",
-          "UpdatedTime": "0001-01-01T00:00:00Z",
-          "Logs": [
-            {
-              "Log": "string value",
-              "UpdatedTime": "0001-01-01T00:00:00Z"
-            }
-          ]
-        }
-      ]
-    }
-  }
-}
-```
-
-### ClientGetDealStatus
-ClientGetDealStatus returns status given a code
-
-
-Perms: read
-
-Inputs:
-```json
-[
-  42
-]
-```
-
-Response: `"string value"`
-
-### ClientGetDealUpdates
-ClientGetDealUpdates returns the status of updated deals
-
-
-Perms: write
-
-Inputs: `null`
-
-Response:
-```json
-{
-  "ProposalCid": {
-    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-  },
-  "State": 42,
-  "Message": "string value",
-  "DealStages": {
-    "Stages": [
-      {
-        "Name": "string value",
-        "Description": "string value",
-        "ExpectedDuration": "string value",
-        "CreatedTime": "0001-01-01T00:00:00Z",
-        "UpdatedTime": "0001-01-01T00:00:00Z",
-        "Logs": [
-          {
-            "Log": "string value",
-            "UpdatedTime": "0001-01-01T00:00:00Z"
-          }
-        ]
-      }
-    ]
-  },
-  "Provider": "f01234",
-  "DataRef": {
-    "TransferType": "string value",
-    "Root": {
-      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-    },
-    "PieceCid": {
-      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-    },
-    "PieceSize": 1024,
-    "RawBlockSize": 42
-  },
-  "PieceCID": {
-    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-  },
-  "Size": 42,
-  "PricePerEpoch": "0",
-  "Duration": 42,
-  "DealID": 5432,
-  "CreationTime": "0001-01-01T00:00:00Z",
-  "Verified": true,
-  "TransferChannelID": {
-    "Initiator": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-    "Responder": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-    "ID": 3
-  },
-  "DataTransfer": {
-    "TransferID": 3,
-    "Status": 1,
-    "BaseCID": {
-      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-    },
-    "IsInitiator": true,
-    "IsSender": true,
-    "Voucher": "string value",
-    "Message": "string value",
-    "OtherPeer": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-    "Transferred": 42,
-    "Stages": {
-      "Stages": [
-        {
-          "Name": "string value",
-          "Description": "string value",
-          "CreatedTime": "0001-01-01T00:00:00Z",
-          "UpdatedTime": "0001-01-01T00:00:00Z",
-          "Logs": [
-            {
-              "Log": "string value",
-              "UpdatedTime": "0001-01-01T00:00:00Z"
-            }
-          ]
-        }
-      ]
-    }
-  }
-}
-```
-
-### ClientGetRetrievalUpdates
-ClientGetRetrievalUpdates returns status of updated retrieval deals
-
-
-Perms: write
-
-Inputs: `null`
-
-Response:
-```json
-{
-  "PayloadCID": {
-    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-  },
-  "ID": 5,
-  "PieceCID": {
-    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-  },
-  "PricePerByte": "0",
-  "UnsealPrice": "0",
-  "Status": 0,
-  "Message": "string value",
-  "Provider": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-  "BytesReceived": 42,
-  "BytesPaidFor": 42,
-  "TotalPaid": "0",
-  "TransferChannelID": {
-    "Initiator": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-    "Responder": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-    "ID": 3
-  },
-  "DataTransfer": {
-    "TransferID": 3,
-    "Status": 1,
-    "BaseCID": {
-      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-    },
-    "IsInitiator": true,
-    "IsSender": true,
-    "Voucher": "string value",
-    "Message": "string value",
-    "OtherPeer": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-    "Transferred": 42,
-    "Stages": {
-      "Stages": [
-        {
-          "Name": "string value",
-          "Description": "string value",
-          "CreatedTime": "0001-01-01T00:00:00Z",
-          "UpdatedTime": "0001-01-01T00:00:00Z",
-          "Logs": [
-            {
-              "Log": "string value",
-              "UpdatedTime": "0001-01-01T00:00:00Z"
-            }
-          ]
-        }
-      ]
-    }
-  },
-  "Event": 5
-}
-```
-
-### ClientHasLocal
-ClientHasLocal indicates whether a certain CID is locally stored.
-
-
-Perms: write
-
-Inputs:
-```json
-[
-  {
-    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-  }
-]
-```
-
-Response: `true`
-
-### ClientImport
-ClientImport imports file under the specified path into filestore.
-
-
-Perms: admin
-
-Inputs:
-```json
-[
-  {
-    "Path": "string value",
-    "IsCAR": true
-  }
-]
-```
-
-Response:
-```json
-{
-  "Root": {
-    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-  },
-  "ImportID": 50
-}
-```
-
-### ClientListDataTransfers
-ClientListTransfers returns the status of all ongoing transfers of data
-
-
-Perms: write
-
-Inputs: `null`
-
-Response:
-```json
-[
-  {
-    "TransferID": 3,
-    "Status": 1,
-    "BaseCID": {
-      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-    },
-    "IsInitiator": true,
-    "IsSender": true,
-    "Voucher": "string value",
-    "Message": "string value",
-    "OtherPeer": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-    "Transferred": 42,
-    "Stages": {
-      "Stages": [
-        {
-          "Name": "string value",
-          "Description": "string value",
-          "CreatedTime": "0001-01-01T00:00:00Z",
-          "UpdatedTime": "0001-01-01T00:00:00Z",
-          "Logs": [
-            {
-              "Log": "string value",
-              "UpdatedTime": "0001-01-01T00:00:00Z"
-            }
-          ]
-        }
-      ]
-    }
-  }
-]
-```
-
-### ClientListDeals
-ClientListDeals returns information about the deals made by the local client.
-
-
-Perms: write
-
-Inputs: `null`
-
-Response:
-```json
-[
-  {
-    "ProposalCid": {
-      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-    },
-    "State": 42,
-    "Message": "string value",
-    "DealStages": {
-      "Stages": [
-        {
-          "Name": "string value",
-          "Description": "string value",
-          "ExpectedDuration": "string value",
-          "CreatedTime": "0001-01-01T00:00:00Z",
-          "UpdatedTime": "0001-01-01T00:00:00Z",
-          "Logs": [
-            {
-              "Log": "string value",
-              "UpdatedTime": "0001-01-01T00:00:00Z"
-            }
-          ]
-        }
-      ]
-    },
-    "Provider": "f01234",
-    "DataRef": {
-      "TransferType": "string value",
-      "Root": {
-        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-      },
-      "PieceCid": {
-        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-      },
-      "PieceSize": 1024,
-      "RawBlockSize": 42
-    },
-    "PieceCID": {
-      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-    },
-    "Size": 42,
-    "PricePerEpoch": "0",
-    "Duration": 42,
-    "DealID": 5432,
-    "CreationTime": "0001-01-01T00:00:00Z",
-    "Verified": true,
-    "TransferChannelID": {
-      "Initiator": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-      "Responder": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-      "ID": 3
-    },
-    "DataTransfer": {
-      "TransferID": 3,
-      "Status": 1,
-      "BaseCID": {
-        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-      },
-      "IsInitiator": true,
-      "IsSender": true,
-      "Voucher": "string value",
-      "Message": "string value",
-      "OtherPeer": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-      "Transferred": 42,
-      "Stages": {
-        "Stages": [
-          {
-            "Name": "string value",
-            "Description": "string value",
-            "CreatedTime": "0001-01-01T00:00:00Z",
-            "UpdatedTime": "0001-01-01T00:00:00Z",
-            "Logs": [
-              {
-                "Log": "string value",
-                "UpdatedTime": "0001-01-01T00:00:00Z"
-              }
-            ]
-          }
-        ]
-      }
-    }
-  }
-]
-```
-
-### ClientListImports
-ClientListImports lists imported files and their root CIDs
-
-
-Perms: write
-
-Inputs: `null`
-
-Response:
-```json
-[
-  {
-    "Key": 50,
-    "Err": "string value",
-    "Root": {
-      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-    },
-    "Source": "string value",
-    "FilePath": "string value",
-    "CARPath": "string value"
-  }
-]
-```
-
-### ClientListRetrievals
-ClientListRetrievals returns information about retrievals made by the local client
-
-
-Perms: write
-
-Inputs: `null`
-
-Response:
-```json
-[
-  {
-    "PayloadCID": {
-      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-    },
-    "ID": 5,
-    "PieceCID": {
-      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-    },
-    "PricePerByte": "0",
-    "UnsealPrice": "0",
-    "Status": 0,
-    "Message": "string value",
-    "Provider": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-    "BytesReceived": 42,
-    "BytesPaidFor": 42,
-    "TotalPaid": "0",
-    "TransferChannelID": {
-      "Initiator": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-      "Responder": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-      "ID": 3
-    },
-    "DataTransfer": {
-      "TransferID": 3,
-      "Status": 1,
-      "BaseCID": {
-        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-      },
-      "IsInitiator": true,
-      "IsSender": true,
-      "Voucher": "string value",
-      "Message": "string value",
-      "OtherPeer": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-      "Transferred": 42,
-      "Stages": {
-        "Stages": [
-          {
-            "Name": "string value",
-            "Description": "string value",
-            "CreatedTime": "0001-01-01T00:00:00Z",
-            "UpdatedTime": "0001-01-01T00:00:00Z",
-            "Logs": [
-              {
-                "Log": "string value",
-                "UpdatedTime": "0001-01-01T00:00:00Z"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    "Event": 5
-  }
-]
-```
-
-### ClientMinerQueryOffer
-ClientMinerQueryOffer returns a QueryOffer for the specific miner and file.
-
-
-Perms: read
-
-Inputs:
-```json
-[
-  "f01234",
-  {
-    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-  },
-  {
-    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-  }
-]
-```
-
-Response:
-```json
-{
-  "Err": "string value",
-  "Root": {
-    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-  },
-  "Piece": {
-    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-  },
-  "Size": 42,
-  "MinPrice": "0",
-  "UnsealPrice": "0",
-  "PricePerByte": "0",
-  "PaymentInterval": 42,
-  "PaymentIntervalIncrease": 42,
-  "Miner": "f01234",
-  "MinerPeer": {
-    "Address": "f01234",
-    "ID": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-    "PieceCID": {
-      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-    }
-  }
-}
-```
-
-### ClientQueryAsk
-ClientQueryAsk returns a signed StorageAsk from the specified miner.
-
-
-Perms: read
-
-Inputs:
-```json
-[
-  "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-  "f01234"
-]
-```
-
-Response:
-```json
-{
-  "Response": {
-    "Price": "0",
-    "VerifiedPrice": "0",
-    "MinPieceSize": 1032,
-    "MaxPieceSize": 1032,
-    "Miner": "f01234",
-    "Timestamp": 10101,
-    "Expiry": 10101,
-    "SeqNo": 42
-  },
-  "DealProtocols": [
-    "string value"
-  ]
-}
-```
-
-### ClientRemoveImport
-ClientRemoveImport removes file import
-
-
-Perms: admin
-
-Inputs:
-```json
-[
-  50
-]
-```
-
-Response: `{}`
-
-### ClientRestartDataTransfer
-ClientRestartDataTransfer attempts to restart a data transfer with the given transfer ID and other peer
-
-
-Perms: write
-
-Inputs:
-```json
-[
-  3,
-  "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-  true
-]
-```
-
-Response: `{}`
-
-### ClientRetrieve
-ClientRetrieve initiates the retrieval of a file, as specified in the order.
-
-
-Perms: admin
-
-Inputs:
-```json
-[
-  {
-    "Root": {
-      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-    },
-    "Piece": {
-      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-    },
-    "DataSelector": "Links/21/Hash/Links/42/Hash",
-    "Size": 42,
-    "Total": "0",
-    "UnsealPrice": "0",
-    "PaymentInterval": 42,
-    "PaymentIntervalIncrease": 42,
-    "Client": "f01234",
-    "Miner": "f01234",
-    "MinerPeer": {
-      "Address": "f01234",
-      "ID": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
-      "PieceCID": {
-        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-      }
-    },
-    "RemoteStore": "00000000-0000-0000-0000-000000000000"
-  }
-]
-```
-
-Response:
-```json
-{
-  "DealID": 5
-}
-```
-
-### ClientRetrieveTryRestartInsufficientFunds
-ClientRetrieveTryRestartInsufficientFunds attempts to restart stalled retrievals on a given payment channel
-which are stuck due to insufficient funds
-
-
-Perms: write
-
-Inputs:
-```json
-[
-  "f01234"
-]
-```
-
-Response: `{}`
-
-### ClientRetrieveWait
-ClientRetrieveWait waits for retrieval to be complete
-
-
-Perms: admin
-
-Inputs:
-```json
-[
-  5
-]
-```
-
-Response: `{}`
-
-### ClientStartDeal
-ClientStartDeal proposes a deal with a miner.
-
-
-Perms: admin
-
-Inputs:
-```json
-[
-  {
-    "Data": {
-      "TransferType": "string value",
-      "Root": {
-        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-      },
-      "PieceCid": {
-        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-      },
-      "PieceSize": 1024,
-      "RawBlockSize": 42
-    },
-    "Wallet": "f01234",
-    "Miner": "f01234",
-    "EpochPrice": "0",
-    "MinBlocksDuration": 42,
-    "ProviderCollateral": "0",
-    "DealStartEpoch": 10101,
-    "FastRetrieval": true,
-    "VerifiedDeal": true
-  }
-]
-```
-
-Response:
-```json
-{
-  "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-}
-```
-
-### ClientStatelessDeal
-ClientStatelessDeal fire-and-forget-proposes an offline deal to a miner without subsequent tracking.
-
-
-Perms: write
-
-Inputs:
-```json
-[
-  {
-    "Data": {
-      "TransferType": "string value",
-      "Root": {
-        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-      },
-      "PieceCid": {
-        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-      },
-      "PieceSize": 1024,
-      "RawBlockSize": 42
-    },
-    "Wallet": "f01234",
-    "Miner": "f01234",
-    "EpochPrice": "0",
-    "MinBlocksDuration": 42,
-    "ProviderCollateral": "0",
-    "DealStartEpoch": 10101,
-    "FastRetrieval": true,
-    "VerifiedDeal": true
-  }
-]
-```
-
-Response:
-```json
-{
-  "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-}
-```
-
 ## Create
 
 
@@ -2400,14 +1336,7 @@ Perms: read
 Inputs:
 ```json
 [
-  {
-    "from": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
-    "to": "0x5cbeecf99d3fdb3f25e309cc264f240bb0664031",
-    "gas": "0x5",
-    "gasPrice": "0x0",
-    "value": "0x0",
-    "data": "0x07"
-  }
+  "Bw=="
 ]
 ```
 
@@ -2729,6 +1658,7 @@ Response:
   "gas": "0x5",
   "maxFeePerGas": "0x0",
   "maxPriorityFeePerGas": "0x0",
+  "gasPrice": "0x0",
   "accessList": [
     "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"
   ],
@@ -2768,6 +1698,7 @@ Response:
   "gas": "0x5",
   "maxFeePerGas": "0x0",
   "maxPriorityFeePerGas": "0x0",
+  "gasPrice": "0x0",
   "accessList": [
     "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"
   ],
@@ -2806,6 +1737,7 @@ Response:
   "gas": "0x5",
   "maxFeePerGas": "0x0",
   "maxPriorityFeePerGas": "0x0",
+  "gasPrice": "0x0",
   "accessList": [
     "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"
   ],
@@ -2845,6 +1777,7 @@ Response:
   "gas": "0x5",
   "maxFeePerGas": "0x0",
   "maxPriorityFeePerGas": "0x0",
+  "gasPrice": "0x0",
   "accessList": [
     "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"
   ],
@@ -3083,6 +2016,128 @@ Inputs: `null`
 
 Response: `false`
 
+### EthTraceBlock
+Returns an OpenEthereum-compatible trace of the given block (implementing `trace_block`),
+translating Filecoin semantics into Ethereum semantics and tracing both EVM and FVM calls.
+
+Features:
+
+- FVM actor create events, calls, etc. show up as if they were EVM smart contract events.
+- Native FVM call inputs are ABI-encoded (Solidity ABI) as if they were calls to a
+  `handle_filecoin_method(uint64 method, uint64 codec, bytes params)` function
+  (where `codec` is the IPLD codec of `params`).
+- Native FVM call outputs (return values) are ABI-encoded as `(uint32 exit_code, uint64
+  codec, bytes output)` where `codec` is the IPLD codec of `output`.
+
+Limitations (for now):
+
+1. Block rewards are not included in the trace.
+2. SELFDESTRUCT operations are not included in the trace.
+3. EVM smart contract "create" events always specify `0xfe` as the "code" for newly created EVM smart contracts.
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "string value"
+]
+```
+
+Response:
+```json
+[
+  {
+    "type": "string value",
+    "error": "string value",
+    "subtraces": 123,
+    "traceAddress": [
+      123
+    ],
+    "action": {},
+    "result": {},
+    "blockHash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+    "blockNumber": 9,
+    "transactionHash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+    "transactionPosition": 123
+  }
+]
+```
+
+### EthTraceReplayBlockTransactions
+Replays all transactions in a block returning the requested traces for each transaction
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "string value",
+  [
+    "string value"
+  ]
+]
+```
+
+Response:
+```json
+[
+  {
+    "output": "0x07",
+    "stateDiff": "string value",
+    "trace": [
+      {
+        "type": "string value",
+        "error": "string value",
+        "subtraces": 123,
+        "traceAddress": [
+          123
+        ],
+        "action": {},
+        "result": {}
+      }
+    ],
+    "transactionHash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+    "vmTrace": "string value"
+  }
+]
+```
+
+### EthTraceTransaction
+Implmements OpenEthereum-compatible API method trace_transaction
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "string value"
+]
+```
+
+Response:
+```json
+[
+  {
+    "type": "string value",
+    "error": "string value",
+    "subtraces": 123,
+    "traceAddress": [
+      123
+    ],
+    "action": {},
+    "result": {},
+    "blockHash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+    "blockNumber": 9,
+    "transactionHash": "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e",
+    "transactionPosition": 123
+  }
+]
+```
+
 ### EthUninstallFilter
 Uninstalls a filter with given id.
 
@@ -3108,6 +2163,220 @@ Inputs:
 ```json
 [
   "0x37690cfec6c1bf4c3b9288c7a5d783e98731e90b0a4c177c2a374c7a9427355e"
+]
+```
+
+Response: `true`
+
+## F3
+
+
+### F3GetCertificate
+F3GetCertificate returns a finality certificate at given instance number
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  42
+]
+```
+
+Response:
+```json
+{
+  "GPBFTInstance": 0,
+  "ECChain": null,
+  "SupplementalData": {
+    "Commitments": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "PowerTable": null
+  },
+  "Signers": [
+    0
+  ],
+  "Signature": null,
+  "PowerTableDelta": null
+}
+```
+
+### F3GetECPowerTable
+F3GetECPowerTable returns a F3 specific power table for use in standalone F3 nodes.
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ]
+]
+```
+
+Response:
+```json
+[
+  {
+    "ID": 1000,
+    "Power": "0",
+    "PubKey": "Bw=="
+  }
+]
+```
+
+### F3GetF3PowerTable
+F3GetF3PowerTable returns a F3 specific power table.
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ]
+]
+```
+
+Response:
+```json
+[
+  {
+    "ID": 1000,
+    "Power": "0",
+    "PubKey": "Bw=="
+  }
+]
+```
+
+### F3GetLatestCertificate
+F3GetLatestCertificate returns the latest finality certificate
+
+
+Perms: read
+
+Inputs: `null`
+
+Response:
+```json
+{
+  "GPBFTInstance": 0,
+  "ECChain": null,
+  "SupplementalData": {
+    "Commitments": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "PowerTable": null
+  },
+  "Signers": [
+    0
+  ],
+  "Signature": null,
+  "PowerTableDelta": null
+}
+```
+
+### F3Participate
+F3Participate should be called by a storage provider to participate in signing F3 consensus.
+Calling this API gives the lotus node a lease to sign in F3 on behalf of given SP.
+The lease should be active only on one node. The lease will expire at the newLeaseExpiration.
+To continue participating in F3 with the given node, call F3Participate again before
+the newLeaseExpiration time.
+newLeaseExpiration cannot be further than 5 minutes in the future.
+It is recommended to call F3Participate every 60 seconds
+with newLeaseExpiration set 2min into the future.
+The oldLeaseExpiration has to be set to newLeaseExpiration of the last successful call.
+For the first call to F3Participate, set the oldLeaseExpiration to zero value/time in the past.
+F3Participate will return true if the lease was accepted.
+The minerID has to be the ID address of the miner.
+
+
+Perms: sign
+
+Inputs:
+```json
+[
+  "f01234",
+  "0001-01-01T00:00:00Z",
+  "0001-01-01T00:00:00Z"
 ]
 ```
 
@@ -3262,7 +2531,8 @@ Inputs:
   },
   {
     "MaxFee": "0",
-    "MsgUuid": "07070707-0707-0707-0707-070707070707"
+    "MsgUuid": "07070707-0707-0707-0707-070707070707",
+    "MaximizeFeeCap": true
   },
   [
     {
@@ -3292,6 +2562,72 @@ Response:
     "/": "bafy2bzacebbpdegvr3i4cosewthysg5xkxpqfn2wfcz6mv2hmoktwbdxkax4s"
   }
 }
+```
+
+## Get
+
+
+### GetActorEventsRaw
+GetActorEventsRaw returns all user-programmed and built-in actor events that match the given
+filter.
+This is a request/response API.
+Results available from this API may be limited by the MaxFilterResults and MaxFilterHeightRange
+configuration options and also the amount of historical data available in the node.
+
+This is an EXPERIMENTAL API and may be subject to change.
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  {
+    "addresses": [
+      "f01234"
+    ],
+    "fields": {
+      "abc": [
+        {
+          "codec": 81,
+          "value": "ZGRhdGE="
+        }
+      ]
+    },
+    "fromHeight": 1010,
+    "toHeight": 1020
+  }
+]
+```
+
+Response:
+```json
+[
+  {
+    "entries": [
+      {
+        "Flags": 7,
+        "Key": "string value",
+        "Codec": 42,
+        "Value": "Ynl0ZSBhcnJheQ=="
+      }
+    ],
+    "emitter": "f01234",
+    "reverted": true,
+    "height": 10101,
+    "tipsetKey": [
+      {
+        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+      },
+      {
+        "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+      }
+    ],
+    "msgCid": {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    }
+  }
+]
 ```
 
 ## I
@@ -3739,7 +3075,8 @@ Inputs:
   ],
   {
     "MaxFee": "0",
-    "MsgUuid": "07070707-0707-0707-0707-070707070707"
+    "MsgUuid": "07070707-0707-0707-0707-070707070707",
+    "MaximizeFeeCap": true
   }
 ]
 ```
@@ -4131,7 +3468,8 @@ Inputs:
   },
   {
     "MaxFee": "0",
-    "MsgUuid": "07070707-0707-0707-0707-070707070707"
+    "MsgUuid": "07070707-0707-0707-0707-070707070707",
+    "MaximizeFeeCap": true
   }
 ]
 ```
@@ -6091,33 +5429,6 @@ Response:
 }
 ```
 
-## Raft
-
-
-### RaftLeader
-
-
-Perms: read
-
-Inputs: `null`
-
-Response: `"12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf"`
-
-### RaftState
-
-
-Perms: read
-
-Inputs: `null`
-
-Response:
-```json
-{
-  "NonceMap": {},
-  "MsgUuids": {}
-}
-```
-
 ## Start
 
 
@@ -6168,7 +5479,7 @@ Perms: read
 Inputs:
 ```json
 [
-  21
+  23
 ]
 ```
 
@@ -6183,7 +5494,7 @@ Perms: read
 Inputs:
 ```json
 [
-  21
+  23
 ]
 ```
 
@@ -6314,15 +5625,26 @@ Response:
       "Params": "Ynl0ZSBhcnJheQ==",
       "ParamsCodec": 42,
       "GasLimit": 42,
-      "ReadOnly": true,
-      "CodeCid": {
-        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-      }
+      "ReadOnly": true
     },
     "MsgRct": {
       "ExitCode": 0,
       "Return": "Ynl0ZSBhcnJheQ==",
       "ReturnCodec": 42
+    },
+    "InvokedActor": {
+      "Id": 1000,
+      "State": {
+        "Code": {
+          "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+        },
+        "Head": {
+          "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+        },
+        "Nonce": 42,
+        "Balance": "0",
+        "DelegatedAddress": "f01234"
+      }
     },
     "GasCharges": [
       {
@@ -6343,15 +5665,26 @@ Response:
           "Params": "Ynl0ZSBhcnJheQ==",
           "ParamsCodec": 42,
           "GasLimit": 42,
-          "ReadOnly": true,
-          "CodeCid": {
-            "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-          }
+          "ReadOnly": true
         },
         "MsgRct": {
           "ExitCode": 0,
           "Return": "Ynl0ZSBhcnJheQ==",
           "ReturnCodec": 42
+        },
+        "InvokedActor": {
+          "Id": 1000,
+          "State": {
+            "Code": {
+              "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+            },
+            "Head": {
+              "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+            },
+            "Nonce": 42,
+            "Balance": "0",
+            "DelegatedAddress": "f01234"
+          }
         },
         "GasCharges": [
           {
@@ -6402,7 +5735,7 @@ Response:
     },
     "Nonce": 42,
     "Balance": "0",
-    "Address": "f01234"
+    "DelegatedAddress": "f01234"
   }
 }
 ```
@@ -6554,15 +5887,26 @@ Response:
           "Params": "Ynl0ZSBhcnJheQ==",
           "ParamsCodec": 42,
           "GasLimit": 42,
-          "ReadOnly": true,
-          "CodeCid": {
-            "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-          }
+          "ReadOnly": true
         },
         "MsgRct": {
           "ExitCode": 0,
           "Return": "Ynl0ZSBhcnJheQ==",
           "ReturnCodec": 42
+        },
+        "InvokedActor": {
+          "Id": 1000,
+          "State": {
+            "Code": {
+              "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+            },
+            "Head": {
+              "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+            },
+            "Nonce": 42,
+            "Balance": "0",
+            "DelegatedAddress": "f01234"
+          }
         },
         "GasCharges": [
           {
@@ -6583,15 +5927,26 @@ Response:
               "Params": "Ynl0ZSBhcnJheQ==",
               "ParamsCodec": 42,
               "GasLimit": 42,
-              "ReadOnly": true,
-              "CodeCid": {
-                "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-              }
+              "ReadOnly": true
             },
             "MsgRct": {
               "ExitCode": 0,
               "Return": "Ynl0ZSBhcnJheQ==",
               "ReturnCodec": 42
+            },
+            "InvokedActor": {
+              "Id": 1000,
+              "State": {
+                "Code": {
+                  "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+                },
+                "Head": {
+                  "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+                },
+                "Nonce": 42,
+                "Balance": "0",
+                "DelegatedAddress": "f01234"
+              }
             },
             "GasCharges": [
               {
@@ -6752,9 +6107,53 @@ Response:
   },
   "Nonce": 42,
   "Balance": "0",
-  "Address": "f01234"
+  "DelegatedAddress": "f01234"
 }
 ```
+
+### StateGetAllAllocations
+StateGetAllAllocations returns the all the allocations available in verified registry actor.
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ]
+]
+```
+
+Response: `{}`
+
+### StateGetAllClaims
+StateGetAllClaims returns the all the claims available in verified registry actor.
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ]
+]
+```
+
+Response: `{}`
 
 ### StateGetAllocation
 StateGetAllocation returns the allocation for a given address and allocation ID.
@@ -6829,6 +6228,29 @@ Response:
   "Expiration": 10101
 }
 ```
+
+### StateGetAllocationIdForPendingDeal
+StateGetAllocationIdForPendingDeal is like StateGetAllocationForPendingDeal except it returns the allocation ID
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  5432,
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ]
+]
+```
+
+Response: `0`
 
 ### StateGetAllocations
 StateGetAllocations returns the all the allocations for a given client.
@@ -6980,8 +6402,12 @@ Response:
     "UpgradeHyggeHeight": 10101,
     "UpgradeLightningHeight": 10101,
     "UpgradeThunderHeight": 10101,
-    "UpgradeWatermelonHeight": 10101
-  }
+    "UpgradeWatermelonHeight": 10101,
+    "UpgradeDragonHeight": 10101,
+    "UpgradePhoenixHeight": 10101,
+    "UpgradeWaffleHeight": 10101
+  },
+  "Eip155ChainID": 123
 }
 ```
 
@@ -7284,10 +6710,10 @@ Response:
       "ClientCollateral": "0"
     },
     "State": {
+      "SectorNumber": 9,
       "SectorStartEpoch": 10101,
       "LastUpdatedEpoch": 10101,
-      "SlashEpoch": 10101,
-      "VerifiedClaim": 0
+      "SlashEpoch": 10101
     }
   }
 }
@@ -7363,10 +6789,10 @@ Response:
     "ClientCollateral": "0"
   },
   "State": {
+    "SectorNumber": 9,
     "SectorStartEpoch": 10101,
     "LastUpdatedEpoch": 10101,
-    "SlashEpoch": 10101,
-    "VerifiedClaim": 0
+    "SlashEpoch": 10101
   }
 }
 ```
@@ -7411,12 +6837,12 @@ Response:
     "InitialPledge": "0",
     "ExpectedDayReward": "0",
     "ExpectedStoragePledge": "0",
-    "ReplacedSectorAge": 10101,
+    "PowerBaseEpoch": 10101,
     "ReplacedDayReward": "0",
     "SectorKeyCID": {
       "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
     },
-    "SimpleQAPower": true
+    "Flags": 0
   }
 ]
 ```
@@ -7919,12 +7345,12 @@ Response:
     "InitialPledge": "0",
     "ExpectedDayReward": "0",
     "ExpectedStoragePledge": "0",
-    "ReplacedSectorAge": 10101,
+    "PowerBaseEpoch": 10101,
     "ReplacedDayReward": "0",
     "SectorKeyCID": {
       "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
     },
-    "SimpleQAPower": true
+    "Flags": 0
   }
 ]
 ```
@@ -7959,7 +7385,7 @@ Inputs:
 ]
 ```
 
-Response: `21`
+Response: `23`
 
 ### StateReadState
 StateReadState returns the indicated actor's state.
@@ -8082,15 +7508,26 @@ Response:
       "Params": "Ynl0ZSBhcnJheQ==",
       "ParamsCodec": 42,
       "GasLimit": 42,
-      "ReadOnly": true,
-      "CodeCid": {
-        "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-      }
+      "ReadOnly": true
     },
     "MsgRct": {
       "ExitCode": 0,
       "Return": "Ynl0ZSBhcnJheQ==",
       "ReturnCodec": 42
+    },
+    "InvokedActor": {
+      "Id": 1000,
+      "State": {
+        "Code": {
+          "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+        },
+        "Head": {
+          "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+        },
+        "Nonce": 42,
+        "Balance": "0",
+        "DelegatedAddress": "f01234"
+      }
     },
     "GasCharges": [
       {
@@ -8111,15 +7548,26 @@ Response:
           "Params": "Ynl0ZSBhcnJheQ==",
           "ParamsCodec": 42,
           "GasLimit": 42,
-          "ReadOnly": true,
-          "CodeCid": {
-            "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
-          }
+          "ReadOnly": true
         },
         "MsgRct": {
           "ExitCode": 0,
           "Return": "Ynl0ZSBhcnJheQ==",
           "ReturnCodec": 42
+        },
+        "InvokedActor": {
+          "Id": 1000,
+          "State": {
+            "Code": {
+              "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+            },
+            "Head": {
+              "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+            },
+            "Nonce": 42,
+            "Balance": "0",
+            "DelegatedAddress": "f01234"
+          }
         },
         "GasCharges": [
           {
@@ -8278,12 +7726,12 @@ Response:
   "InitialPledge": "0",
   "ExpectedDayReward": "0",
   "ExpectedStoragePledge": "0",
-  "ReplacedSectorAge": 10101,
+  "PowerBaseEpoch": 10101,
   "ReplacedDayReward": "0",
   "SectorKeyCID": {
     "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
   },
-  "SimpleQAPower": true
+  "Flags": 0
 }
 ```
 
@@ -8531,6 +7979,77 @@ Response:
     }
   ],
   "Height": 10101
+}
+```
+
+## Subscribe
+
+
+### SubscribeActorEventsRaw
+SubscribeActorEventsRaw returns a long-lived stream of all user-programmed and built-in actor
+events that match the given filter.
+Events that match the given filter are written to the stream in real-time as they are emitted
+from the FVM.
+The response stream is closed when the client disconnects, when a ToHeight is specified and is
+reached, or if there is an error while writing an event to the stream.
+This API also allows clients to read all historical events matching the given filter before any
+real-time events are written to the response stream if the filter specifies an earlier
+FromHeight.
+Results available from this API may be limited by the MaxFilterResults and MaxFilterHeightRange
+configuration options and also the amount of historical data available in the node.
+
+Note: this API is only available via websocket connections.
+This is an EXPERIMENTAL API and may be subject to change.
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  {
+    "addresses": [
+      "f01234"
+    ],
+    "fields": {
+      "abc": [
+        {
+          "codec": 81,
+          "value": "ZGRhdGE="
+        }
+      ]
+    },
+    "fromHeight": 1010,
+    "toHeight": 1020
+  }
+]
+```
+
+Response:
+```json
+{
+  "entries": [
+    {
+      "Flags": 7,
+      "Key": "string value",
+      "Codec": 42,
+      "Value": "Ynl0ZSBhcnJheQ=="
+    }
+  ],
+  "emitter": "f01234",
+  "reverted": true,
+  "height": 10101,
+  "tipsetKey": [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ],
+  "msgCid": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  }
 }
 ```
 
@@ -8949,7 +8468,7 @@ Inputs:
 Response: `"f01234"`
 
 ### WalletSetDefault
-WalletSetDefault marks the given address as as the default one.
+WalletSetDefault marks the given address as the default one.
 
 
 Perms: write

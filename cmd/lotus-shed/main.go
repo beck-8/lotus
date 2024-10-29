@@ -24,6 +24,7 @@ func main() {
 	local := []*cli.Command{
 		addressCmd,
 		statActorCmd,
+		statSnapshotCmd,
 		statObjCmd,
 		base64Cmd,
 		base32Cmd,
@@ -47,7 +48,6 @@ func main() {
 		proofsCmd,
 		verifRegCmd,
 		marketCmd,
-		miscCmd,
 		mpoolCmd,
 		helloCmd,
 		genesisVerifyCmd,
@@ -83,13 +83,14 @@ func main() {
 		diffCmd,
 		itestdCmd,
 		msigCmd,
-		fip36PollCmd,
 		invariantsCmd,
 		gasTraceCmd,
 		replayOfflineCmd,
 		indexesCmd,
 		FevmAnalyticsCmd,
 		mismatchesCmd,
+		blockCmd,
+		adlCmd,
 		gasCmd,
 		checkCmd,
 	}
@@ -97,7 +98,7 @@ func main() {
 	app := &cli.App{
 		Name:     "lotus-shed",
 		Usage:    "A place for all the lotus tools",
-		Version:  build.UserVersion(),
+		Version:  string(build.NodeUserVersion()),
 		Commands: local,
 		Flags: []cli.Flag{
 			&cli.StringFlag{

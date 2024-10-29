@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	cbg "github.com/whyrusleeping/cbor-gen"
 	"golang.org/x/crypto/sha3"
+	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
 	amt4 "github.com/filecoin-project/go-amt-ipld/v4"
@@ -41,6 +42,49 @@ type EVM struct{ *TestFullNode }
 
 func (f *TestFullNode) EVM() *EVM {
 	return &EVM{f}
+}
+
+// SignLegacyHomesteadTransaction signs a legacy Homstead Ethereum transaction in place with the supplied private key.
+func (e *EVM) SignLegacyEIP155Transaction(tx *ethtypes.EthLegacy155TxArgs, privKey []byte, chainID big.Int) {
+	preimage, err := tx.ToRlpUnsignedMsg()
+	require.NoError(e.t, err)
+
+	// sign the RLP payload
+	signature, err := sigs.Sign(crypto.SigTypeDelegated, privKey, preimage)
+	require.NoError(e.t, err)
+
+	signature.Data = append([]byte{ethtypes.EthLegacy155TxSignaturePrefix}, signature.Data...)
+
+	chainIdMul := big.Mul(chainID, big.NewInt(2))
+	vVal := big.Add(chainIdMul, big.NewIntUnsigned(35))
+
+	switch signature.Data[len(signature.Data)-1] {
+	case 0:
+		vVal = big.Add(vVal, big.NewInt(0))
+	case 1:
+		vVal = big.Add(vVal, big.NewInt(1))
+	}
+
+	signature.Data = append(signature.Data[:65], vVal.Int.Bytes()...)
+
+	err = tx.InitialiseSignature(*signature)
+	require.NoError(e.t, err)
+}
+
+// SignLegacyHomesteadTransaction signs a legacy Homstead Ethereum transaction in place with the supplied private key.
+func (e *EVM) SignLegacyHomesteadTransaction(tx *ethtypes.EthLegacyHomesteadTxArgs, privKey []byte) {
+	preimage, err := tx.ToRlpUnsignedMsg()
+	require.NoError(e.t, err)
+
+	// sign the RLP payload
+	signature, err := sigs.Sign(crypto.SigTypeDelegated, privKey, preimage)
+	require.NoError(e.t, err)
+
+	signature.Data = append([]byte{ethtypes.EthLegacyHomesteadTxSignaturePrefix}, signature.Data...)
+	signature.Data[len(signature.Data)-1] += 27
+
+	err = tx.InitialiseSignature(*signature)
+	require.NoError(e.t, err)
 }
 
 func (e *EVM) DeployContractWithValue(ctx context.Context, sender address.Address, bytecode []byte, value big.Int) eam.CreateReturn {
@@ -207,7 +251,7 @@ func (e *EVM) AssertAddressBalanceConsistent(ctx context.Context, addr address.A
 }
 
 // SignTransaction signs an Ethereum transaction in place with the supplied private key.
-func (e *EVM) SignTransaction(tx *ethtypes.EthTxArgs, privKey []byte) {
+func (e *EVM) SignTransaction(tx *ethtypes.Eth1559TxArgs, privKey []byte) {
 	preimage, err := tx.ToRlpUnsignedMsg()
 	require.NoError(e.t, err)
 
@@ -215,16 +259,12 @@ func (e *EVM) SignTransaction(tx *ethtypes.EthTxArgs, privKey []byte) {
 	signature, err := sigs.Sign(crypto.SigTypeDelegated, privKey, preimage)
 	require.NoError(e.t, err)
 
-	r, s, v, err := ethtypes.RecoverSignature(*signature)
+	err = tx.InitialiseSignature(*signature)
 	require.NoError(e.t, err)
-
-	tx.V = big.Int(v)
-	tx.R = big.Int(r)
-	tx.S = big.Int(s)
 }
 
 // SubmitTransaction submits the transaction via the Eth endpoint.
-func (e *EVM) SubmitTransaction(ctx context.Context, tx *ethtypes.EthTxArgs) ethtypes.EthHash {
+func (e *EVM) SubmitTransaction(ctx context.Context, tx ethtypes.EthTransaction) ethtypes.EthHash {
 	signed, err := tx.ToRlpSignedMsg()
 	require.NoError(e.t, err)
 
@@ -289,6 +329,17 @@ func (e *EVM) InvokeContractByFuncNameExpectExit(ctx context.Context, fromAddr a
 	entryPoint := CalcFuncSignature(funcSignature)
 	wait, _ := e.InvokeSolidity(ctx, fromAddr, idAddr, entryPoint, inputData)
 	require.Equal(e.t, exit, wait.Receipt.ExitCode)
+}
+
+func (e *EVM) WaitTransaction(ctx context.Context, hash ethtypes.EthHash) (*api.EthTxReceipt, error) {
+	if mcid, err := e.EthGetMessageCidByTransactionHash(ctx, &hash); err != nil {
+		return nil, err
+	} else if mcid == nil {
+		return nil, xerrors.Errorf("couldn't find message CID for txn hash: %s", hash)
+	} else {
+		e.WaitMsg(ctx, *mcid)
+		return e.EthGetTransactionReceipt(ctx, hash)
+	}
 }
 
 // function signatures are the first 4 bytes of the hash of the function name and types

@@ -6,19 +6,14 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ipfs/go-datastore"
-	"github.com/ipfs/go-datastore/namespace"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-libp2p/p2p/host/eventbus"
 	"go.uber.org/fx"
 	"golang.org/x/xerrors"
-
-	"github.com/filecoin-project/go-fil-markets/discovery"
-	discoveryimpl "github.com/filecoin-project/go-fil-markets/discovery/impl"
 
 	"github.com/filecoin-project/lotus/build"
 	"github.com/filecoin-project/lotus/chain"
@@ -34,7 +29,6 @@ import (
 	"github.com/filecoin-project/lotus/journal"
 	"github.com/filecoin-project/lotus/journal/fsjournal"
 	"github.com/filecoin-project/lotus/lib/peermgr"
-	marketevents "github.com/filecoin-project/lotus/markets/loggers"
 	"github.com/filecoin-project/lotus/node/hello"
 	"github.com/filecoin-project/lotus/node/impl/full"
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
@@ -66,32 +60,27 @@ func RunHello(mctx helpers.MetricsCtx, lc fx.Lifecycle, h host.Host, svc *hello.
 	ctx := helpers.LifecycleCtx(mctx, lc)
 
 	go func() {
+		// We want to get information on connected peers, we don't want to trigger new connections.
+		ctx := network.WithNoDial(ctx, "filecoin hello")
 		for evt := range sub.Out() {
 			pic := evt.(event.EvtPeerIdentificationCompleted)
+			// We just finished identifying the peer, that means we should know what
+			// protocols it speaks. Check if it speeks the Filecoin hello protocol
+			// before continuing.
+			if p, _ := h.Peerstore().FirstSupportedProtocol(pic.Peer, hello.ProtocolID); p != hello.ProtocolID {
+				continue
+			}
+
 			go func() {
 				if err := svc.SayHello(ctx, pic.Peer); err != nil {
 					protos, _ := h.Peerstore().GetProtocols(pic.Peer)
 					agent, _ := h.Peerstore().Get(pic.Peer, "AgentVersion")
-					if protosContains(protos, hello.ProtocolID) {
-						log.Warnw("failed to say hello", "error", err, "peer", pic.Peer, "supported", protos, "agent", agent)
-					} else {
-						log.Debugw("failed to say hello", "error", err, "peer", pic.Peer, "supported", protos, "agent", agent)
-					}
-					return
+					log.Warnw("failed to say hello", "error", err, "peer", pic.Peer, "supported", protos, "agent", agent)
 				}
 			}()
 		}
 	}()
 	return nil
-}
-
-func protosContains(protos []protocol.ID, search protocol.ID) bool {
-	for _, p := range protos {
-		if p == search {
-			return true
-		}
-	}
-	return false
 }
 
 func RunPeerMgr(mctx helpers.MetricsCtx, lc fx.Lifecycle, pmgr *peermgr.PeerMgr) {
@@ -229,24 +218,6 @@ func RelayIndexerMessages(lc fx.Lifecycle, ps *pubsub.PubSub, nn dtypes.NetworkN
 	return nil
 }
 
-func NewLocalDiscovery(lc fx.Lifecycle, ds dtypes.MetadataDS) (*discoveryimpl.Local, error) {
-	local, err := discoveryimpl.NewLocal(namespace.Wrap(ds, datastore.NewKey("/deals/local")))
-	if err != nil {
-		return nil, err
-	}
-	local.OnReady(marketevents.ReadyLogger("discovery"))
-	lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
-			return local.Start(ctx)
-		},
-	})
-	return local, nil
-}
-
-func RetrievalResolver(l *discoveryimpl.Local) discovery.PeerResolver {
-	return discoveryimpl.Multi(l)
-}
-
 type RandomBeaconParams struct {
 	fx.In
 
@@ -265,13 +236,9 @@ func RandomSchedule(lc fx.Lifecycle, mctx helpers.MetricsCtx, p RandomBeaconPara
 		return nil, err
 	}
 
-	shd := beacon.Schedule{}
-	for _, dc := range p.DrandConfig {
-		bc, err := drand.NewDrandBeacon(gen.Timestamp, build.BlockDelaySecs, p.PubSub, dc.Config)
-		if err != nil {
-			return nil, xerrors.Errorf("creating drand beacon: %w", err)
-		}
-		shd = append(shd, beacon.BeaconPoint{Start: dc.Start, Beacon: bc})
+	shd, err := drand.BeaconScheduleFromDrandSchedule(p.DrandConfig, gen.Timestamp, p.PubSub)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to create beacon schedule: %w", err)
 	}
 
 	return shd, nil

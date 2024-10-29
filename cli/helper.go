@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -8,7 +9,6 @@ import (
 	"syscall"
 
 	ufcli "github.com/urfave/cli/v2"
-	"golang.org/x/xerrors"
 )
 
 type PrintHelpErr struct {
@@ -52,7 +52,7 @@ func RunApp(app *ufcli.App) {
 			fmt.Fprintf(os.Stderr, "ERROR: %s\n\n", err) // nolint:errcheck
 		}
 		var phe *PrintHelpErr
-		if xerrors.As(err, &phe) {
+		if errors.As(err, &phe) {
 			_ = ufcli.ShowCommandHelp(phe.Ctx, phe.Ctx.Command.Name)
 		}
 		os.Exit(1)
@@ -76,15 +76,15 @@ func NewAppFmt(a *ufcli.App) *AppFmt {
 }
 
 func (a *AppFmt) Print(args ...interface{}) {
-	fmt.Fprint(a.app.Writer, args...)
+	_, _ = fmt.Fprint(a.app.Writer, args...)
 }
 
 func (a *AppFmt) Println(args ...interface{}) {
-	fmt.Fprintln(a.app.Writer, args...)
+	_, _ = fmt.Fprintln(a.app.Writer, args...)
 }
 
 func (a *AppFmt) Printf(fmtstr string, args ...interface{}) {
-	fmt.Fprintf(a.app.Writer, fmtstr, args...)
+	_, _ = fmt.Fprintf(a.app.Writer, fmtstr, args...)
 }
 
 func (a *AppFmt) Scan(args ...interface{}) (int, error) {

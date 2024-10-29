@@ -16,10 +16,10 @@ import (
 )
 
 var DrandSchedule = map[abi.ChainEpoch]DrandEnum{
-	0: DrandMainnet,
+	0: DrandQuicknet,
 }
 
-const GenesisNetworkVersion = network.Version20
+const GenesisNetworkVersion = network.Version22
 
 var NetworkBundle = "butterflynet"
 var BundleOverrides map[actorstypes.Version]string
@@ -54,14 +54,20 @@ const UpgradeSharkHeight = -20
 const UpgradeHyggeHeight = -21
 const UpgradeLightningHeight = -22
 const UpgradeThunderHeight = -23
+const UpgradeWatermelonHeight = -24
+const UpgradeDragonHeight = -25
+const UpgradePhoenixHeight = -26
 
-const UpgradeWatermelonHeight = 400
+const UpgradeWaffleHeight = 100
 
 // This fix upgrade only ran on calibrationnet
 const UpgradeWatermelonFixHeight = -100
 
 // This fix upgrade only ran on calibrationnet
 const UpgradeWatermelonFix2Height = -101
+
+// This fix upgrade only ran on calibrationnet
+const UpgradeCalibrationDragonFixHeight = -102
 
 var SupportedProofTypes = []abi.RegisteredSealProof{
 	abi.RegisteredSealProof_StackedDrg512MiBV1,
@@ -89,6 +95,8 @@ const BlockDelaySecs = uint64(builtin2.EpochDurationSeconds)
 
 const PropagationDelaySecs = uint64(6)
 
+var EquivocationDelaySecs = uint64(2)
+
 // BootstrapPeerThreshold is the minimum number peers we need to track for a sync worker to start
 const BootstrapPeerThreshold = 2
 
@@ -97,3 +105,7 @@ const BootstrapPeerThreshold = 2
 const Eip155ChainId = 3141592
 
 var WhitelistedBlock = cid.Undef
+
+const f3Enabled = true
+const ManifestServerID = "12D3KooWJr9jy4ngtJNR7JC1xgLFra3DjEtyxskRYWvBK9TC3Yn6"
+const F3BootstrapEpoch abi.ChainEpoch = 1000

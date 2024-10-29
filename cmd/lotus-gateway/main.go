@@ -40,7 +40,7 @@ func main() {
 	app := &cli.App{
 		Name:    "lotus-gateway",
 		Usage:   "Public API server for lotus",
-		Version: build.UserVersion(),
+		Version: string(build.NodeUserVersion()),
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "repo",
@@ -143,7 +143,7 @@ var runCmd = &cli.Command{
 		},
 		&cli.DurationFlag{
 			Name:  "rate-limit-timeout",
-			Usage: "the maximum time to wait for the rate limter before returning an error to clients",
+			Usage: "the maximum time to wait for the rate limiter before returning an error to clients",
 			Value: gateway.DefaultRateLimitTimeout,
 		},
 		&cli.Int64Flag{

@@ -32,10 +32,11 @@ import (
 type MinerSubsystem int
 
 const (
-	SMarkets MinerSubsystem = 1 << iota
-	SMining
+	SMining MinerSubsystem = 1 << iota
 	SSealing
 	SSectorStorage
+
+	SHarmony
 
 	MinerSubsystems = iota
 )

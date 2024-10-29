@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"time"
@@ -93,20 +93,21 @@ type Commit2In struct {
 }
 
 func main() {
-	logging.SetLogLevel("*", "INFO")
+	_ = logging.SetLogLevel("*", "INFO")
 
 	log.Info("Starting lotus-bench")
 
 	app := &cli.App{
 		Name:                      "lotus-bench",
 		Usage:                     "Benchmark performance of lotus on your hardware",
-		Version:                   build.UserVersion(),
+		Version:                   string(build.NodeUserVersion()),
 		DisableSliceFlagSeparator: true,
 		Commands: []*cli.Command{
 			proveCmd,
 			sealBenchCmd,
 			simpleCmd,
 			importBenchCmd,
+			cliCmd,
 			rpcCmd,
 		},
 	}
@@ -328,13 +329,16 @@ var sealBenchCmd = &cli.Command{
 		}
 
 		var challenge [32]byte
-		rand.Read(challenge[:])
+		_, err = rand.Read(challenge[:])
+		if err != nil {
+			return err
+		}
 
 		beforePost := time.Now()
 
 		if !skipc2 {
 			log.Info("generating winning post candidates")
-			wipt, err := spt(sectorSize, false).RegisteredWinningPoStProof()
+			wipt, err := spt(sectorSize, miner.SealProofVariant_Standard).RegisteredWinningPoStProof()
 			if err != nil {
 				return err
 			}
@@ -552,15 +556,13 @@ func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par
 				Miner:  mid,
 				Number: i,
 			},
-			ProofType: spt(sectorSize, false),
+			ProofType: spt(sectorSize, miner.SealProofVariant_Standard),
 		}
 
 		start := time.Now()
 		log.Infof("[%d] Writing piece into sector...", i)
 
-		r := rand.New(rand.NewSource(100 + int64(i)))
-
-		pi, err := sb.AddPiece(context.TODO(), sid, nil, abi.PaddedPieceSize(sectorSize).Unpadded(), r)
+		pi, err := sb.AddPiece(context.TODO(), sid, nil, abi.PaddedPieceSize(sectorSize).Unpadded(), rand.Reader)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -584,7 +586,7 @@ func runSeals(sb *ffiwrapper.Sealer, sbfs *basicfs.Provider, numSectors int, par
 							Miner:  mid,
 							Number: i,
 						},
-						ProofType: spt(sectorSize, false),
+						ProofType: spt(sectorSize, miner.SealProofVariant_Standard),
 					}
 
 					start := time.Now()
@@ -795,7 +797,7 @@ var proveCmd = &cli.Command{
 				Miner:  abi.ActorID(mid),
 				Number: abi.SectorNumber(c2in.SectorNum),
 			},
-			ProofType: spt(abi.SectorSize(c2in.SectorSize), false),
+			ProofType: spt(abi.SectorSize(c2in.SectorSize), miner.SealProofVariant_Standard),
 		}
 
 		fmt.Printf("----\nstart proof computation\n")
@@ -826,8 +828,8 @@ func bps(sectorSize abi.SectorSize, sectorNum int, d time.Duration) string {
 	return types.SizeStr(types.BigInt{Int: bps}) + "/s"
 }
 
-func spt(ssize abi.SectorSize, synth bool) abi.RegisteredSealProof {
-	spt, err := miner.SealProofTypeFromSectorSize(ssize, build.TestNetworkVersion, synth)
+func spt(ssize abi.SectorSize, variant miner.SealProofVariant) abi.RegisteredSealProof {
+	spt, err := miner.SealProofTypeFromSectorSize(ssize, build.TestNetworkVersion, variant)
 	if err != nil {
 		panic(err)
 	}

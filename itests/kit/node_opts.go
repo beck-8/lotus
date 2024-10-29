@@ -1,6 +1,8 @@
 package kit
 
 import (
+	"math"
+
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
 
@@ -23,6 +25,7 @@ import (
 const DefaultPresealsPerBootstrapMiner = 2
 
 const TestSpt = abi.RegisteredSealProof_StackedDrg2KiBV1_1
+const TestSptNi = abi.RegisteredSealProof_StackedDrg2KiBV1_2_Feat_NiPoRep
 
 // nodeOpts is an options accumulating struct, where functional options are
 // merged into.
@@ -41,7 +44,6 @@ type nodeOpts struct {
 	disableLibp2p          bool
 	optBuilders            []OptBuilder
 	sectorSize             abi.SectorSize
-	maxStagingDealsBytes   int64
 	minerNoLocalSealing    bool // use worker
 	minerAssigner          string
 	disallowRemoteFinalize bool
@@ -63,6 +65,8 @@ var DefaultNodeOpts = nodeOpts{
 			// test defaults
 
 			cfg.Fevm.EnableEthRPC = true
+			cfg.Events.MaxFilterHeightRange = math.MaxInt64
+			cfg.Events.EnableActorEventsAPI = true
 			return nil
 		},
 	},
@@ -80,11 +84,17 @@ type NodeOpt func(opts *nodeOpts) error
 
 func WithAllSubsystems() NodeOpt {
 	return func(opts *nodeOpts) error {
-		opts.subsystems = opts.subsystems.Add(SMarkets)
 		opts.subsystems = opts.subsystems.Add(SMining)
 		opts.subsystems = opts.subsystems.Add(SSealing)
 		opts.subsystems = opts.subsystems.Add(SSectorStorage)
 
+		return nil
+	}
+}
+
+func WithSectorIndexDB() NodeOpt {
+	return func(opts *nodeOpts) error {
+		opts.subsystems = opts.subsystems.Add(SHarmony)
 		return nil
 	}
 }
@@ -97,14 +107,6 @@ func WithSubsystems(systems ...MinerSubsystem) NodeOpt {
 		return nil
 	}
 }
-
-func WithMaxStagingDealsBytes(size int64) NodeOpt {
-	return func(opts *nodeOpts) error {
-		opts.maxStagingDealsBytes = size
-		return nil
-	}
-}
-
 func WithNoLocalSealing(nope bool) NodeOpt {
 	return func(opts *nodeOpts) error {
 		opts.minerNoLocalSealing = nope
@@ -197,7 +199,7 @@ func OwnerAddr(wk *key.Key) NodeOpt {
 // the node.
 func ConstructorOpts(extra ...node.Option) NodeOpt {
 	return func(opts *nodeOpts) error {
-		opts.extraNodeOpts = extra
+		opts.extraNodeOpts = append(opts.extraNodeOpts, extra...)
 		return nil
 	}
 }
@@ -286,6 +288,13 @@ func SplitstoreMessges() NodeOpt {
 		cfg.Chainstore.EnableSplitstore = true
 		cfg.Chainstore.Splitstore.HotStoreFullGCFrequency = 0 // turn off full gc
 		cfg.Chainstore.Splitstore.ColdStoreType = "messages"  // universal bs is coldstore, and it accepts messages
+		return nil
+	})
+}
+
+func SplitstoreDisable() NodeOpt {
+	return WithCfgOpt(func(cfg *config.FullNode) error {
+		cfg.Chainstore.EnableSplitstore = false
 		return nil
 	})
 }
