@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-address"
@@ -148,6 +149,7 @@ var checkCmd = &cli.Command{
 			}
 		}
 
+		fmt.Println("start checking sectors", time.Now().Format("2006-01-02 15:04:05"))
 		var okCount int32
 		for _, info := range toCheck {
 			throttle <- struct{}{}
