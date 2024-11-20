@@ -3,6 +3,7 @@ package sealer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"reflect"
@@ -45,6 +46,7 @@ type WorkerConfig struct {
 }
 
 // used do provide custom proofs impl (mostly used in testing)
+
 type ExecutorFunc func(w *LocalWorker) (storiface.Storage, error)
 type EnvFunc func(string) (string, bool)
 
@@ -311,7 +313,7 @@ func (l *LocalWorker) asyncCall(ctx context.Context, sector storiface.SectorRef,
 
 func toCallError(err error) *storiface.CallError {
 	var serr *storiface.CallError
-	if err != nil && !xerrors.As(err, &serr) {
+	if err != nil && !errors.As(err, &serr) {
 		serr = storiface.Err(storiface.ErrUnknown, err)
 	}
 

@@ -22,9 +22,9 @@ import (
 	cbg "github.com/whyrusleeping/cbor-gen"
 	"golang.org/x/xerrors"
 
-	ffi "github.com/filecoin-project/filecoin-ffi"
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-amt-ipld/v4"
+	"github.com/filecoin-project/go-commp-utils/v2"
 	"github.com/filecoin-project/go-hamt-ipld/v3"
 	"github.com/filecoin-project/go-state-types/abi"
 	actorstypes "github.com/filecoin-project/go-state-types/actors"
@@ -37,6 +37,7 @@ import (
 	market13 "github.com/filecoin-project/go-state-types/builtin/v13/market"
 	adt13 "github.com/filecoin-project/go-state-types/builtin/v13/util/adt"
 	v14 "github.com/filecoin-project/go-state-types/builtin/v14"
+	v15 "github.com/filecoin-project/go-state-types/builtin/v15"
 	market8 "github.com/filecoin-project/go-state-types/builtin/v8/market"
 	adt8 "github.com/filecoin-project/go-state-types/builtin/v8/util/adt"
 	v9 "github.com/filecoin-project/go-state-types/builtin/v9"
@@ -62,6 +63,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/consensus"
 	"github.com/filecoin-project/lotus/chain/consensus/filcns"
 	"github.com/filecoin-project/lotus/chain/index"
+	proofsffi "github.com/filecoin-project/lotus/chain/proofs/ffi"
 	"github.com/filecoin-project/lotus/chain/state"
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	"github.com/filecoin-project/lotus/chain/store"
@@ -70,7 +72,6 @@ import (
 	lcli "github.com/filecoin-project/lotus/cli"
 	"github.com/filecoin-project/lotus/lib/must"
 	"github.com/filecoin-project/lotus/node/repo"
-	"github.com/filecoin-project/lotus/storage/sealer/ffiwrapper"
 )
 
 var migrationsCmd = &cli.Command{
@@ -177,7 +178,7 @@ var migrationsCmd = &cli.Command{
 		defer cs.Close() //nolint:errcheck
 
 		// Note: we use a map datastore for the metadata to avoid writing / using cached migration results in the metadata store
-		sm, err := stmgr.NewStateManager(cs, consensus.NewTipSetExecutor(filcns.RewardFunc), vm.Syscalls(ffiwrapper.ProofVerifier), filcns.DefaultUpgradeSchedule(), nil, datastore.NewMapDatastore(), index.DummyMsgIndex)
+		sm, err := stmgr.NewStateManager(cs, consensus.NewTipSetExecutor(filcns.RewardFunc), vm.Syscalls(proofsffi.ProofVerifier), filcns.DefaultUpgradeSchedule(), nil, datastore.NewMapDatastore(), index.DummyMsgIndex)
 		if err != nil {
 			return err
 		}
@@ -294,6 +295,8 @@ func getMigrationFuncsForNetwork(nv network.Version) (UpgradeActorsFunc, PreUpgr
 		return filcns.UpgradeActorsV13, filcns.PreUpgradeActorsV13, checkNv22Invariants, nil
 	case network.Version23:
 		return filcns.UpgradeActorsV14, filcns.PreUpgradeActorsV14, checkNv23Invariants, nil
+	case network.Version24:
+		return filcns.UpgradeActorsV15, filcns.PreUpgradeActorsV15, checkNv24Invariants, nil
 	default:
 		return nil, nil, nil, xerrors.Errorf("migration not implemented for nv%d", nv)
 	}
@@ -618,6 +621,39 @@ func printMarketActorDiff(ctx context.Context, cst *cbornode.BasicIpldStore, nv 
 			}
 		}
 	}
+
+	return nil
+}
+
+func checkNv24Invariants(ctx context.Context, oldStateRootCid cid.Cid, newStateRootCid cid.Cid, bs blockstore.Blockstore, epoch abi.ChainEpoch) error {
+
+	actorStore := store.ActorStore(ctx, bs)
+	startTime := time.Now()
+
+	// Load the new state root.
+	var newStateRoot types.StateRoot
+	if err := actorStore.Get(ctx, newStateRootCid, &newStateRoot); err != nil {
+		return xerrors.Errorf("failed to decode state root: %w", err)
+	}
+
+	actorCodeCids, err := actors.GetActorCodeIDs(actorstypes.Version15)
+	if err != nil {
+		return err
+	}
+	newActorTree, err := builtin.LoadTree(actorStore, newStateRoot.Actors)
+	if err != nil {
+		return err
+	}
+	messages, err := v15.CheckStateInvariants(newActorTree, epoch, actorCodeCids)
+	if err != nil {
+		return xerrors.Errorf("checking state invariants: %w", err)
+	}
+
+	for _, message := range messages.Messages() {
+		fmt.Println("got the following error: ", message)
+	}
+
+	fmt.Println("completed invariant checks, took ", time.Since(startTime))
 
 	return nil
 }
@@ -1049,7 +1085,7 @@ func compareProposalToAllocation(prop market8.DealProposal, alloc verifreg9.Allo
 
 	proposalClientID, err := address.IDFromAddress(prop.Client)
 	if err != nil {
-		return xerrors.Errorf("couldnt get ID from address")
+		return xerrors.Errorf("couldn't get ID from address")
 	}
 	if proposalClientID != uint64(alloc.Client) {
 		return xerrors.Errorf("client id mismatch between proposal and allocation: %v, %v", proposalClientID, alloc.Client)
@@ -1057,7 +1093,7 @@ func compareProposalToAllocation(prop market8.DealProposal, alloc verifreg9.Allo
 
 	proposalProviderID, err := address.IDFromAddress(prop.Provider)
 	if err != nil {
-		return xerrors.Errorf("couldnt get ID from address")
+		return xerrors.Errorf("couldn't get ID from address")
 	}
 	if proposalProviderID != uint64(alloc.Provider) {
 		return xerrors.Errorf("provider id mismatch between proposal and allocation: %v, %v", proposalProviderID, alloc.Provider)
@@ -1225,7 +1261,7 @@ func checkMinerUnsealedCID(act *types.Actor, stateTreeV9 *state.StateTree, store
 			return xerrors.Errorf("nil unsealed CID for sector with deals")
 		}
 
-		pieceCID, err := ffi.GenerateUnsealedCID(abi.RegisteredSealProof_StackedDrg64GiBV1_1, pieceCids)
+		pieceCID, _, err := commp.PieceAggregateCommP(abi.RegisteredSealProof_StackedDrg64GiBV1_1, pieceCids)
 		if err != nil {
 			return err
 		}

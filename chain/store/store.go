@@ -30,8 +30,9 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	bstore "github.com/filecoin-project/lotus/blockstore"
-	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/build/buildconstants"
 	"github.com/filecoin-project/lotus/chain/actors/adt"
+	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/journal"
 	"github.com/filecoin-project/lotus/metrics"
@@ -521,7 +522,7 @@ func (cs *ChainStore) exceedsForkLength(ctx context.Context, synced, external *t
 	// `forkLength`: number of tipsets we need to walk back from the our `synced`
 	// chain to the common ancestor with the new `external` head in order to
 	// adopt the fork.
-	for forkLength := 0; forkLength < int(build.ForkLengthThreshold); forkLength++ {
+	for forkLength := 0; forkLength < int(policy.ChainFinality); forkLength++ {
 		// First walk back as many tipsets in the external chain to match the
 		// `synced` height to compare them. If we go past the `synced` height
 		// the subsequent match will fail but it will still be useful to get
@@ -797,8 +798,7 @@ func (cs *ChainStore) removeCheckpoint(ctx context.Context) error {
 // SetCheckpoint will set a checkpoint past which the chainstore will not allow forks. If the new
 // checkpoint is not an ancestor of the current head, head will be set to the new checkpoint.
 //
-// NOTE: Checkpoints cannot be set beyond ForkLengthThreshold epochs in the past, but can be set
-// arbitrarily far into the future.
+// NOTE: Checkpoints cannot revert more than policy.Finality epochs.
 // NOTE: The new checkpoint must already be synced.
 func (cs *ChainStore) SetCheckpoint(ctx context.Context, ts *types.TipSet) error {
 	tskBytes, err := json.Marshal(ts.Key())
@@ -809,26 +809,58 @@ func (cs *ChainStore) SetCheckpoint(ctx context.Context, ts *types.TipSet) error
 	cs.heaviestLk.Lock()
 	defer cs.heaviestLk.Unlock()
 
-	// Otherwise, this operation could get _very_ expensive.
-	if cs.heaviest.Height()-ts.Height() > build.ForkLengthThreshold {
-		return xerrors.Errorf("cannot set a checkpoint before the fork threshold")
+	finality := cs.heaviest.Height() - policy.ChainFinality
+	targetChain, currentChain := ts, cs.heaviest
+
+	// First attempt to skip backwards to a common height using the chain index.
+	if targetChain.Height() > currentChain.Height() {
+		targetChain, err = cs.GetTipsetByHeight(ctx, currentChain.Height(), targetChain, true)
+	} else if targetChain.Height() < currentChain.Height() {
+		currentChain, err = cs.GetTipsetByHeight(ctx, targetChain.Height(), currentChain, true)
+	}
+	if err != nil {
+		return xerrors.Errorf("checkpoint failed: error when finding the fork point: %w", err)
 	}
 
-	if !ts.Equals(cs.heaviest) {
-		anc, err := cs.IsAncestorOf(ctx, ts, cs.heaviest)
-		if err != nil {
-			return xerrors.Errorf("cannot determine whether checkpoint tipset is in main-chain: %w", err)
+	// Then walk backwards until either we find a common block (the fork height) or we reach
+	// finality. If the tipsets are _equal_ on the first pass through this loop, it means one
+	// chain is a prefix of the other chain because we've only walked back on one chain so far.
+	// In that case, we _don't_ check finality because we're not forking.
+	for !currentChain.Equals(targetChain) && currentChain.Height() > finality {
+		if currentChain.Height() >= targetChain.Height() {
+			currentChain, err = cs.GetTipSetFromKey(ctx, currentChain.Parents())
+			if err != nil {
+				return xerrors.Errorf("checkpoint failed: error when walking the current chain: %w", err)
+			}
 		}
 
-		if !anc {
-			if err := cs.takeHeaviestTipSet(ctx, ts); err != nil {
-				return xerrors.Errorf("failed to switch chains when setting checkpoint: %w", err)
+		if targetChain.Height() > currentChain.Height() {
+			targetChain, err = cs.GetTipSetFromKey(ctx, targetChain.Parents())
+			if err != nil {
+				return xerrors.Errorf("checkpoint failed: error when walking the target chain: %w", err)
 			}
 		}
 	}
+
+	// If we haven't found a common tipset by this point, we can't switch chains.
+	if !currentChain.Equals(targetChain) {
+		return xerrors.Errorf("checkpoint failed: failed to find the fork point from %s (head) to %s (target) within finality",
+			cs.heaviest.Key(),
+			ts.Key(),
+		)
+	}
+
+	// If the target tipset isn't an ancestor of our current chain, we need to switch chains.
+	if !currentChain.Equals(ts) {
+		if err := cs.takeHeaviestTipSet(ctx, ts); err != nil {
+			return xerrors.Errorf("failed to switch chains when setting checkpoint: %w", err)
+		}
+	}
+
+	// Finally, set the checkpoint.
 	err = cs.metadataDs.Put(ctx, checkpointKey, tskBytes)
 	if err != nil {
-		return err
+		return xerrors.Errorf("checkpoint failed: failed to record checkpoint in the datastore: %w", err)
 	}
 
 	cs.checkpoint = ts
@@ -910,26 +942,12 @@ func (cs *ChainStore) IsAncestorOf(ctx context.Context, a, b *types.TipSet) (boo
 		return false, nil
 	}
 
-	cur := b
-	for !a.Equals(cur) && cur.Height() > a.Height() {
-		next, err := cs.LoadTipSet(ctx, cur.Parents())
-		if err != nil {
-			return false, err
-		}
-
-		cur = next
-	}
-
-	return cur.Equals(a), nil
-}
-
-func (cs *ChainStore) NearestCommonAncestor(ctx context.Context, a, b *types.TipSet) (*types.TipSet, error) {
-	l, _, err := cs.ReorgOps(ctx, a, b)
+	target, err := cs.GetTipsetByHeight(ctx, a.Height(), b, false)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 
-	return cs.LoadTipSet(ctx, l[len(l)-1].Parents())
+	return target.Equals(a), nil
 }
 
 // ReorgOps takes two tipsets (which can be at different heights), and walks
@@ -1018,7 +1036,7 @@ func (cs *ChainStore) AddToTipSetTracker(ctx context.Context, b *types.BlockHead
 	// Seems good enough to me
 
 	for height := range cs.tipsets {
-		if height < b.Height-build.Finality {
+		if height < b.Height-policy.ChainFinality {
 			delete(cs.tipsets, height)
 		}
 		break
@@ -1031,7 +1049,7 @@ func (cs *ChainStore) AddToTipSetTracker(ctx context.Context, b *types.BlockHead
 
 // PersistTipsets writes the provided blocks and the TipSetKey objects to the blockstore
 func (cs *ChainStore) PersistTipsets(ctx context.Context, tipsets []*types.TipSet) error {
-	toPersist := make([]*types.BlockHeader, 0, len(tipsets)*int(build.BlocksPerEpoch))
+	toPersist := make([]*types.BlockHeader, 0, len(tipsets)*int(buildconstants.BlocksPerEpoch))
 	tsBlks := make([]block.Block, 0, len(tipsets))
 	for _, ts := range tipsets {
 		toPersist = append(toPersist, ts.Blocks()...)
@@ -1343,6 +1361,10 @@ func (cs *ChainStore) GetTipSetFromKey(ctx context.Context, tsk types.TipSetKey)
 
 func (cs *ChainStore) GetLatestBeaconEntry(ctx context.Context, ts *types.TipSet) (*types.BeaconEntry, error) {
 	cur := ts
+
+	// Search for a beacon entry, in normal operation one should be in the requested tipset, but for
+	// devnets where the blocktime is faster than the beacon period we may need to search back a bit
+	// to find a tipset with a beacon entry.
 	for i := 0; i < 20; i++ {
 		cbe := cur.Blocks()[0].BeaconEntries
 		if len(cbe) > 0 {

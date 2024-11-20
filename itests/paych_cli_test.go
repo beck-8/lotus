@@ -3,6 +3,7 @@ package itests
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -13,14 +14,13 @@ import (
 
 	cbor "github.com/ipfs/go-ipld-cbor"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/blockstore"
-	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/build/buildconstants"
 	"github.com/filecoin-project/lotus/chain/actors/adt"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/paych"
 	"github.com/filecoin-project/lotus/chain/events"
@@ -71,7 +71,7 @@ func TestPaymentChannelsBasic(t *testing.T) {
 	// This makes us wait as much as 10 epochs before giving up and failing
 	retry := 0
 	_, err = paymentReceiver.StateLookupID(ctx, chAddr, types.EmptyTSK)
-	for err != nil && xerrors.Is(err, &api.ErrActorNotFound{}) {
+	for err != nil && errors.Is(err, &api.ErrActorNotFound{}) {
 		time.Sleep(blocktime)
 		_, err = paymentReceiver.StateLookupID(ctx, chAddr, types.EmptyTSK)
 		retry++
@@ -159,7 +159,7 @@ func TestPaymentChannelStatus(t *testing.T) {
 	stateCreated := regexp.MustCompile("Channel exists").MatchString(out)
 	require.True(t, stateCreating || stateCreated)
 
-	channelAmtAtto := types.BigMul(types.NewInt(channelAmt), types.NewInt(build.FilecoinPrecision))
+	channelAmtAtto := types.BigMul(types.NewInt(channelAmt), types.NewInt(buildconstants.FilecoinPrecision))
 	channelAmtStr := fmt.Sprintf("%s", types.FIL(channelAmtAtto))
 	if stateCreating {
 		// If we're in the creating state (most likely) the amount should be pending
@@ -185,7 +185,7 @@ func TestPaymentChannelStatus(t *testing.T) {
 
 	out = creatorCLI.RunCmd("paych", "status", chstr)
 	fmt.Println(out)
-	voucherAmtAtto := types.BigMul(types.NewInt(voucherAmt), types.NewInt(build.FilecoinPrecision))
+	voucherAmtAtto := types.BigMul(types.NewInt(voucherAmt), types.NewInt(buildconstants.FilecoinPrecision))
 	voucherAmtStr := fmt.Sprintf("%s", types.FIL(voucherAmtAtto))
 	// Output should include voucher amount
 	require.Regexp(t, regexp.MustCompile("Voucher.*"+voucherAmtStr), out)

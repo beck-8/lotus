@@ -3,6 +3,7 @@ package itests
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -10,7 +11,6 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/big"
@@ -18,6 +18,7 @@ import (
 
 	lapi "github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/build/buildconstants"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/itests/kit"
 )
@@ -166,11 +167,13 @@ func (ts *apiSuite) testOutOfGasError(t *testing.T) {
 
 	// the gas estimator API executes the message with gasLimit = BlockGasLimit
 	// Lowering it to 2 will cause it to run out of gas, testing the failure case we want
-	originalLimit := build.BlockGasLimit
-	build.BlockGasLimit = 2
+	originalLimit := buildconstants.BlockGasLimit
+	buildconstants.BlockGasLimit = 2
 	defer func() {
-		build.BlockGasLimit = originalLimit
+		buildconstants.BlockGasLimit = originalLimit
 	}()
+
+	t.Logf("BlockGasLimit changed: %d", buildconstants.BlockGasLimit)
 
 	msg := &types.Message{
 		From:  senderAddr,
@@ -180,7 +183,7 @@ func (ts *apiSuite) testOutOfGasError(t *testing.T) {
 
 	_, err = full.GasEstimateMessageGas(ctx, msg, nil, types.EmptyTSK)
 	require.Error(t, err, "should have failed")
-	require.True(t, xerrors.Is(err, &lapi.ErrOutOfGas{}))
+	require.True(t, errors.Is(err, &lapi.ErrOutOfGas{}))
 }
 
 func (ts *apiSuite) testLookupNotFoundError(t *testing.T) {
@@ -193,7 +196,7 @@ func (ts *apiSuite) testLookupNotFoundError(t *testing.T) {
 
 	_, err = full.StateLookupID(ctx, addr, types.EmptyTSK)
 	require.Error(t, err)
-	require.True(t, xerrors.Is(err, &lapi.ErrActorNotFound{}))
+	require.True(t, errors.Is(err, &lapi.ErrActorNotFound{}))
 }
 
 func (ts *apiSuite) testMining(t *testing.T) {
@@ -288,6 +291,7 @@ func (ts *apiSuite) testNonGenesisMiner(t *testing.T) {
 	ctx := context.Background()
 
 	full, genesisMiner, ens := kit.EnsembleMinimal(t, append(ts.opts, kit.MockProofs())...)
+
 	ens.InterconnectAll().BeginMining(4 * time.Millisecond)
 
 	time.Sleep(1 * time.Second)

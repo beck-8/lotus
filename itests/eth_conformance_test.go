@@ -22,7 +22,7 @@ import (
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filecoin-project/go-state-types/big"
 
-	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/build/buildconstants"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/types/ethtypes"
 	"github.com/filecoin-project/lotus/chain/wallet/key"
@@ -54,6 +54,7 @@ type ethAPIRaw struct {
 	EthGetTransactionCount                 func(context.Context, ethtypes.EthAddress, ethtypes.EthBlockNumberOrHash) (json.RawMessage, error)
 	EthGetTransactionReceipt               func(context.Context, ethtypes.EthHash) (json.RawMessage, error)
 	EthMaxPriorityFeePerGas                func(context.Context) (json.RawMessage, error)
+	EthGetBlockReceipts                    func(context.Context, ethtypes.EthBlockNumberOrHash) (json.RawMessage, error)
 	EthNewBlockFilter                      func(context.Context) (json.RawMessage, error)
 	EthNewFilter                           func(context.Context, *ethtypes.EthFilterSpec) (json.RawMessage, error)
 	EthNewPendingTransactionFilter         func(context.Context) (json.RawMessage, error)
@@ -353,7 +354,12 @@ func TestEthOpenRPCConformance(t *testing.T) {
 				return ethapi.EthGetTransactionReceipt(context.Background(), messageWithEvents)
 			},
 		},
-
+		{
+			method: "eth_getBlockReceipts",
+			call: func(a *ethAPIRaw) (json.RawMessage, error) {
+				return ethapi.EthGetBlockReceipts(context.Background(), ethtypes.NewEthBlockNumberOrHashFromNumber(blockNumberWithMessage))
+			},
+		},
 		{
 			method: "eth_maxPriorityFeePerGas",
 			call: func(a *ethAPIRaw) (json.RawMessage, error) {
@@ -464,7 +470,7 @@ func createRawSignedEthTx(ctx context.Context, t *testing.T, client *kit.TestFul
 	require.NoError(t, err)
 
 	tx := ethtypes.Eth1559TxArgs{
-		ChainID:              build.Eip155ChainId,
+		ChainID:              buildconstants.Eip155ChainId,
 		Value:                big.NewInt(100),
 		Nonce:                0,
 		To:                   &receiverEthAddr,

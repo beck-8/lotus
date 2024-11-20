@@ -9,8 +9,8 @@ import (
 
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
-	"github.com/minio/blake2b-simd"
 	cbg "github.com/whyrusleeping/cbor-gen"
+	"golang.org/x/crypto/blake2b"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-state-types/abi"
@@ -98,7 +98,7 @@ func tipsetSortFunc(blks []*BlockHeader) func(i, j int) bool {
 	}
 }
 
-// Checks:
+// NewTipSet checks:
 //   - A tipset is composed of at least one block. (Because of our variable
 //     number of blocks per tipset, determined by randomness, we do not impose
 //     an upper limit.)

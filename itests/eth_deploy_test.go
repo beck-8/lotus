@@ -19,7 +19,7 @@ import (
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/blockstore"
-	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/build/buildconstants"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/evm"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/types/ethtypes"
@@ -74,7 +74,7 @@ func TestDeployment(t *testing.T) {
 
 	// now deploy a contract from the placeholder, and validate it went well
 	tx := ethtypes.Eth1559TxArgs{
-		ChainID:              build.Eip155ChainId,
+		ChainID:              buildconstants.Eip155ChainId,
 		Value:                big.Zero(),
 		Nonce:                0,
 		MaxFeePerGas:         types.NanoFil,
@@ -139,6 +139,29 @@ func TestDeployment(t *testing.T) {
 	receipt, err := client.EthGetTransactionReceipt(ctx, hash)
 	require.NoError(t, err)
 	require.NotNil(t, receipt)
+
+	// Then lookup the receipt.
+	receipts, err := client.EthGetBlockReceipts(ctx, ethtypes.EthBlockNumberOrHash{BlockHash: &receipt.BlockHash})
+	require.NoError(t, err)
+	require.NotNil(t, receipts)
+	require.Greater(t, len(receipts), 0)
+	var matchingReceipt *api.EthTxReceipt
+	for _, r := range receipts {
+		if r.TransactionHash == receipt.TransactionHash {
+			require.Nil(t, matchingReceipt, "Multiple matching receipts found")
+			matchingReceipt = r
+		}
+	}
+	require.NotNil(t, matchingReceipt, "No matching receipt found")
+
+	require.NotNil(t, receipt.ContractAddress)
+	require.NotNil(t, matchingReceipt.ContractAddress)
+	require.Equal(t, *receipt.ContractAddress, *matchingReceipt.ContractAddress)
+	originalReceiptContractAddress := receipt.ContractAddress
+	receipt.ContractAddress = nil
+	matchingReceipt.ContractAddress = nil
+	require.Equal(t, receipt, matchingReceipt)
+	receipt.ContractAddress = originalReceiptContractAddress
 
 	// logs must be an empty array, not a nil value, to avoid tooling compatibility issues
 	require.Empty(t, receipt.Logs)

@@ -14,7 +14,7 @@ import (
 	"github.com/filecoin-project/go-statemachine"
 
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/build/buildconstants"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -131,17 +131,37 @@ func (m *Sealing) handleSubmitReplicaUpdate(ctx statemachine.Context, sector Sec
 		return ctx.Send(SectorSubmitReplicaUpdateFailed{})
 	}
 
-	weightUpdate, err := m.sectorWeight(ctx.Context(), sector, onChainInfo.Expiration)
+	duration := onChainInfo.Expiration - ts.Height()
+
+	ssize, err := sector.SectorType.SectorSize()
 	if err != nil {
-		log.Errorf("failed to get sector weight: %+v", err)
-		return ctx.Send(SectorSubmitReplicaUpdateFailed{})
+		return xerrors.Errorf("failed to resolve sector size for seal proof: %w", err)
 	}
 
-	collateral, err := m.pledgeForPower(ctx.Context(), weightUpdate)
-	if err != nil {
-		log.Errorf("failed to get pledge for power: %+v", err)
-		return ctx.Send(SectorSubmitReplicaUpdateFailed{})
+	var verifiedSize uint64
+	for _, piece := range sector.Pieces {
+		if piece.HasDealInfo() {
+			alloc, err := piece.GetAllocation(ctx.Context(), m.Api, ts.Key())
+			if err != nil || alloc == nil {
+				if err != nil {
+					log.Errorw("failed to get allocation", "error", err)
+				}
+				verifiedSize += uint64(piece.Piece().Size)
+			}
+		}
 	}
+
+	collateral, err := m.Api.StateMinerInitialPledgeForSector(ctx.Context(), duration, ssize, verifiedSize, ts.Key())
+	if err != nil {
+		return xerrors.Errorf("getting initial pledge collateral: %w", err)
+	}
+
+	log.Infow("submitting replica update",
+		"sector", sector.SectorNumber,
+		"verifiedSize", verifiedSize,
+		"totalPledge", types.FIL(collateral),
+		"initialPledge", types.FIL(onChainInfo.InitialPledge),
+		"toPledge", types.FIL(big.Sub(collateral, onChainInfo.InitialPledge)))
 
 	collateral = big.Sub(collateral, onChainInfo.InitialPledge)
 	if collateral.LessThan(big.Zero()) {
@@ -274,7 +294,7 @@ func (m *Sealing) handleReplicaUpdateWait(ctx statemachine.Context, sector Secto
 		return ctx.Send(SectorSubmitReplicaUpdateFailed{})
 	}
 
-	mw, err := m.Api.StateWaitMsg(ctx.Context(), *sector.ReplicaUpdateMessage, build.MessageConfidence, api.LookbackNoLimit, true)
+	mw, err := m.Api.StateWaitMsg(ctx.Context(), *sector.ReplicaUpdateMessage, buildconstants.MessageConfidence, api.LookbackNoLimit, true)
 	if err != nil {
 		log.Errorf("handleReplicaUpdateWait: failed to wait for message: %+v", err)
 		return ctx.Send(SectorSubmitReplicaUpdateFailed{})
@@ -330,7 +350,7 @@ func (m *Sealing) handleUpdateActivating(ctx statemachine.Context, sector Sector
 	}
 
 	try := func() error {
-		mw, err := m.Api.StateWaitMsg(ctx.Context(), *sector.ReplicaUpdateMessage, build.MessageConfidence, api.LookbackNoLimit, true)
+		mw, err := m.Api.StateWaitMsg(ctx.Context(), *sector.ReplicaUpdateMessage, buildconstants.MessageConfidence, api.LookbackNoLimit, true)
 		if err != nil {
 			return err
 		}

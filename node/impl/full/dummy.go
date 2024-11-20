@@ -71,6 +71,14 @@ func (e *EthModuleDummy) EthGetTransactionReceipt(ctx context.Context, txHash et
 	return nil, ErrModuleDisabled
 }
 
+func (e *EthModuleDummy) EthGetBlockReceiptsLimited(ctx context.Context, blkParam ethtypes.EthBlockNumberOrHash, limit abi.ChainEpoch) ([]*api.EthTxReceipt, error) {
+	return nil, ErrModuleDisabled
+}
+
+func (e *EthModuleDummy) EthGetBlockReceipts(ctx context.Context, blkParam ethtypes.EthBlockNumberOrHash) ([]*api.EthTxReceipt, error) {
+	return nil, ErrModuleDisabled
+}
+
 func (e *EthModuleDummy) EthGetTransactionReceiptLimited(ctx context.Context, txHash ethtypes.EthHash, limit abi.ChainEpoch) (*api.EthTxReceipt, error) {
 	return nil, ErrModuleDisabled
 }
@@ -188,6 +196,10 @@ func (e *EthModuleDummy) EthTraceReplayBlockTransactions(ctx context.Context, bl
 }
 
 func (e *EthModuleDummy) EthTraceTransaction(ctx context.Context, txHash string) ([]*ethtypes.EthTraceTransaction, error) {
+	return nil, ErrModuleDisabled
+}
+
+func (e *EthModuleDummy) EthTraceFilter(ctx context.Context, filter ethtypes.EthTraceFilterCriteria) ([]*ethtypes.EthTraceFilterResult, error) {
 	return nil, ErrModuleDisabled
 }
 

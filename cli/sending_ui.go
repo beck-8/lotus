@@ -17,7 +17,7 @@ import (
 	"github.com/filecoin-project/go-state-types/big"
 
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/build/buildconstants"
 	"github.com/filecoin-project/lotus/chain/types"
 )
 
@@ -26,7 +26,7 @@ func InteractiveSend(ctx context.Context, cctx *cli.Context, srv ServicesAPI,
 
 	msg, checks, err := srv.PublishMessage(ctx, proto, cctx.Bool("force") || cctx.Bool("force-send"))
 	printer := cctx.App.Writer
-	if xerrors.Is(err, ErrCheckFailed) {
+	if errors.Is(err, ErrCheckFailed) {
 		if !cctx.Bool("interactive") {
 			_, _ = fmt.Fprintf(printer, "Following checks have failed:\n")
 			printChecks(printer, checks, proto.Message.Cid())
@@ -149,7 +149,7 @@ func isFeeCapProblem(checkGroups [][]api.MessageCheckStatus, protoCid cid.Cid) (
 	}
 	if baseFee.IsZero() {
 		// this will only be the case if failing check is: MessageMinBaseFee
-		baseFee = big.NewInt(build.MinimumBaseFee)
+		baseFee = big.NewInt(buildconstants.MinimumBaseFee)
 	}
 
 	return yes, baseFee
