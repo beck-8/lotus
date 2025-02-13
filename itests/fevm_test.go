@@ -8,19 +8,26 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
 	builtintypes "github.com/filecoin-project/go-state-types/builtin"
 	"github.com/filecoin-project/go-state-types/exitcode"
 	"github.com/filecoin-project/go-state-types/manifest"
+	"github.com/filecoin-project/go-state-types/network"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/build/buildconstants"
+	"github.com/filecoin-project/lotus/chain/consensus/filcns"
+	"github.com/filecoin-project/lotus/chain/stmgr"
+	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/chain/types/ethtypes"
 	"github.com/filecoin-project/lotus/itests/kit"
@@ -667,7 +674,7 @@ func TestFEVMRecursiveActorCallEstimate(t *testing.T) {
 
 			gaslimit, err := client.EthEstimateGas(ctx, gasParams)
 			require.NoError(t, err)
-			require.LessOrEqual(t, int64(gaslimit), build.BlockGasLimit)
+			require.LessOrEqual(t, int64(gaslimit), buildconstants.BlockGasLimit)
 
 			t.Logf("EthEstimateGas GasLimit=%d", gaslimit)
 
@@ -678,7 +685,7 @@ func TestFEVMRecursiveActorCallEstimate(t *testing.T) {
 			require.NoError(t, err)
 
 			tx := &ethtypes.Eth1559TxArgs{
-				ChainID:              build.Eip155ChainId,
+				ChainID:              buildconstants.Eip155ChainId,
 				To:                   &contractAddr,
 				Value:                big.Zero(),
 				Nonce:                int(nonce),
@@ -834,7 +841,7 @@ func TestFEVMBareTransferTriggersSmartContractLogic(t *testing.T) {
 	require.NoError(t, err)
 
 	tx := ethtypes.Eth1559TxArgs{
-		ChainID:              build.Eip155ChainId,
+		ChainID:              buildconstants.Eip155ChainId,
 		Value:                big.NewInt(100),
 		Nonce:                0,
 		To:                   &contractEth,
@@ -1052,4 +1059,378 @@ func TestFEVMErrorParsing(t *testing.T) {
 			})
 		})
 	}
+}
+
+// TestEthGetBlockReceipts tests retrieving block receipts after invoking a contract
+func TestEthGetBlockReceipts(t *testing.T) {
+	blockTime := 500 * time.Millisecond
+	client, _, ens := kit.EnsembleMinimal(t, kit.MockProofs(), kit.ThroughRPC())
+
+	ens.InterconnectAll().BeginMining(blockTime)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	// Create a new Ethereum account
+	key, ethAddr, deployer := client.EVM().NewAccount()
+	// Send some funds to the f410 address
+	kit.SendFunds(ctx, t, client, deployer, types.FromFil(10))
+
+	// Deploy MultipleEvents contract
+	tx := deployContractWithEth(ctx, t, client, ethAddr, "./contracts/MultipleEvents.hex")
+
+	client.EVM().SignTransaction(tx, key.PrivateKey)
+	hash := client.EVM().SubmitTransaction(ctx, tx)
+
+	receipt, err := client.EVM().WaitTransaction(ctx, hash)
+	require.NoError(t, err)
+	require.NotNil(t, receipt)
+	require.EqualValues(t, ethtypes.EthUint64(0x1), receipt.Status)
+
+	contractAddr := client.EVM().ComputeContractAddress(ethAddr, 0)
+
+	// Prepare function call data
+	params4Events, err := hex.DecodeString("98e8da00")
+	require.NoError(t, err)
+	params3Events, err := hex.DecodeString("05734db70000000000000000000000001cd1eeecac00fe01f9d11803e48c15c478fe1d22000000000000000000000000000000000000000000000000000000000000000b")
+	require.NoError(t, err)
+
+	// Estimate gas
+	gasParams, err := json.Marshal(ethtypes.EthEstimateGasParams{Tx: ethtypes.EthCall{
+		From: &ethAddr,
+		To:   &contractAddr,
+		Data: params4Events,
+	}})
+	require.NoError(t, err)
+
+	gaslimit, err := client.EthEstimateGas(ctx, gasParams)
+	require.NoError(t, err)
+
+	maxPriorityFeePerGas, err := client.EthMaxPriorityFeePerGas(ctx)
+	require.NoError(t, err)
+
+	paramsArray := [][]byte{params4Events, params3Events, params3Events}
+
+	var hashes []ethtypes.EthHash
+
+	nonce := 1
+	for _, params := range paramsArray {
+		invokeTx := ethtypes.Eth1559TxArgs{
+			ChainID:              build.Eip155ChainId,
+			To:                   &contractAddr,
+			Value:                big.Zero(),
+			Nonce:                nonce,
+			MaxFeePerGas:         types.NanoFil,
+			MaxPriorityFeePerGas: big.Int(maxPriorityFeePerGas),
+			GasLimit:             int(gaslimit),
+			Input:                params,
+			V:                    big.Zero(),
+			R:                    big.Zero(),
+			S:                    big.Zero(),
+		}
+
+		client.EVM().SignTransaction(&invokeTx, key.PrivateKey)
+		hash := client.EVM().SubmitTransaction(ctx, &invokeTx)
+		hashes = append(hashes, hash)
+		nonce++
+	}
+
+	// Wait for the transactions to be mined
+	var lastReceipt *api.EthTxReceipt
+	for _, hash := range hashes {
+		receipt, err := client.EVM().WaitTransaction(ctx, hash)
+		require.NoError(t, err)
+		require.NotNil(t, receipt)
+		lastReceipt = receipt
+	}
+
+	// Get block receipts
+	blockReceipts, err := client.EthGetBlockReceipts(ctx, ethtypes.EthBlockNumberOrHash{BlockHash: &lastReceipt.BlockHash})
+	require.NoError(t, err)
+	require.NotEmpty(t, blockReceipts)
+
+	// Verify receipts
+	require.Len(t, blockReceipts, 3) // Ensure there are three receipts
+
+	expectedLogCounts := []int{4, 3, 3}
+
+	for i, receipt := range blockReceipts {
+		require.Equal(t, &contractAddr, receipt.To)
+		require.Equal(t, ethtypes.EthUint64(1), receipt.Status)
+		require.NotEmpty(t, receipt.BlockHash, "Block hash should not be empty")
+		require.Equal(t, expectedLogCounts[i], len(receipt.Logs), fmt.Sprintf("Transaction %d should have %d event logs", i+1, expectedLogCounts[i]))
+		if i > 0 {
+			require.Equal(t, blockReceipts[i-1].BlockHash, receipt.BlockHash, "All receipts should have the same block hash")
+		}
+
+		txReceipt, err := client.EthGetTransactionReceipt(ctx, receipt.TransactionHash)
+		require.NoError(t, err)
+		require.Equal(t, txReceipt, receipt)
+	}
+
+	// try with the geth request format for `EthBlockNumberOrHash`
+	var req ethtypes.EthBlockNumberOrHash
+	reqStr := fmt.Sprintf(`"%s"`, lastReceipt.BlockHash.String())
+	err = req.UnmarshalJSON([]byte(reqStr))
+	require.NoError(t, err)
+
+	gethBlockReceipts, err := client.EthGetBlockReceipts(ctx, req)
+	require.NoError(t, err)
+	require.Len(t, gethBlockReceipts, 3)
+}
+
+func deployContractWithEth(ctx context.Context, t *testing.T, client *kit.TestFullNode, ethAddr ethtypes.EthAddress,
+	contractPath string) *ethtypes.Eth1559TxArgs {
+	// install contract
+	contractHex, err := os.ReadFile(contractPath)
+	require.NoError(t, err)
+
+	contract, err := hex.DecodeString(string(contractHex))
+	require.NoError(t, err)
+
+	gasParams, err := json.Marshal(ethtypes.EthEstimateGasParams{Tx: ethtypes.EthCall{
+		From: &ethAddr,
+		Data: contract,
+	}})
+	require.NoError(t, err)
+
+	gaslimit, err := client.EthEstimateGas(ctx, gasParams)
+	require.NoError(t, err)
+
+	maxPriorityFeePerGas, err := client.EthMaxPriorityFeePerGas(ctx)
+	require.NoError(t, err)
+
+	// now deploy a contract from the embryo, and validate it went well
+	return &ethtypes.Eth1559TxArgs{
+		ChainID:              build.Eip155ChainId,
+		Value:                big.Zero(),
+		Nonce:                0,
+		MaxFeePerGas:         types.NanoFil,
+		MaxPriorityFeePerGas: big.Int(maxPriorityFeePerGas),
+		GasLimit:             int(gaslimit),
+		Input:                contract,
+		V:                    big.Zero(),
+		R:                    big.Zero(),
+		S:                    big.Zero(),
+	}
+}
+
+func TestEthGetTransactionCount(t *testing.T) {
+	ctx, cancel, client := kit.SetupFEVMTest(t)
+	defer cancel()
+
+	// Create a new Ethereum account
+	key, ethAddr, filAddr := client.EVM().NewAccount()
+
+	// Test initial state (should be zero)
+	initialCount, err := client.EVM().EthGetTransactionCount(ctx, ethAddr, ethtypes.NewEthBlockNumberOrHashFromPredefined("latest"))
+	require.NoError(t, err)
+	require.Zero(t, initialCount)
+
+	// Send some funds to the new account (this shouldn't change the nonce)
+	kit.SendFunds(ctx, t, client, filAddr, types.FromFil(10))
+
+	// Check nonce again (should still be zero)
+	count, err := client.EVM().EthGetTransactionCount(ctx, ethAddr, ethtypes.NewEthBlockNumberOrHashFromPredefined("latest"))
+	require.NoError(t, err)
+	require.Zero(t, count)
+
+	// Prepare and send multiple transactions
+	numTx := 5
+	var lastHash ethtypes.EthHash
+
+	contractHex, err := os.ReadFile("./contracts/SelfDestruct.hex")
+	require.NoError(t, err)
+	contract, err := hex.DecodeString(string(contractHex))
+	require.NoError(t, err)
+
+	gasParams, err := json.Marshal(ethtypes.EthEstimateGasParams{Tx: ethtypes.EthCall{
+		From: &ethAddr,
+		Data: contract,
+	}})
+	require.NoError(t, err)
+	gaslimit, err := client.EthEstimateGas(ctx, gasParams)
+	require.NoError(t, err)
+	for i := 0; i < numTx; i++ {
+		tx := &ethtypes.Eth1559TxArgs{
+			ChainID:              buildconstants.Eip155ChainId,
+			To:                   &ethAddr, // sending to self
+			Value:                big.NewInt(1000),
+			Nonce:                i,
+			MaxFeePerGas:         types.NanoFil,
+			MaxPriorityFeePerGas: types.NanoFil,
+			GasLimit:             int(gaslimit),
+		}
+		client.EVM().SignTransaction(tx, key.PrivateKey)
+		lastHash = client.EVM().SubmitTransaction(ctx, tx)
+
+		// Check counts for "earliest", "latest", and "pending"
+		_, err = client.EVM().EthGetTransactionCount(ctx, ethAddr, ethtypes.NewEthBlockNumberOrHashFromPredefined("earliest"))
+		require.Error(t, err) // earliest is not supported
+
+		latestCount, err := client.EVM().EthGetTransactionCount(ctx, ethAddr, ethtypes.NewEthBlockNumberOrHashFromPredefined("latest"))
+		require.NoError(t, err)
+		require.Equal(t, ethtypes.EthUint64(i), latestCount, "Latest transaction count should be equal to the number of mined transactions")
+
+		pendingCount, err := client.EVM().EthGetTransactionCount(ctx, ethAddr, ethtypes.NewEthBlockNumberOrHashFromPredefined("pending"))
+		require.NoError(t, err)
+		require.True(t, int(pendingCount) == i || int(pendingCount) == i+1,
+			fmt.Sprintf("Pending transaction count should be either %d or %d, but got %d", i, i+1, pendingCount))
+
+		// Wait for the transaction to be mined
+		_, err = client.EVM().WaitTransaction(ctx, lastHash)
+		require.NoError(t, err)
+	}
+
+	// Get the final counts for "earliest", "latest", and "pending"
+	_, err = client.EVM().EthGetTransactionCount(ctx, ethAddr, ethtypes.NewEthBlockNumberOrHashFromPredefined("earliest"))
+	require.Error(t, err) // earliest is not supported
+
+	finalLatestCount, err := client.EVM().EthGetTransactionCount(ctx, ethAddr, ethtypes.NewEthBlockNumberOrHashFromPredefined("latest"))
+	require.NoError(t, err)
+	require.Equal(t, ethtypes.EthUint64(numTx), finalLatestCount, "Final latest transaction count should equal the number of transactions sent")
+
+	finalPendingCount, err := client.EVM().EthGetTransactionCount(ctx, ethAddr, ethtypes.NewEthBlockNumberOrHashFromPredefined("pending"))
+	require.NoError(t, err)
+	require.Equal(t, ethtypes.EthUint64(numTx), finalPendingCount, "Final pending transaction count should equal the number of transactions sent")
+
+	// Test with a contract
+	createReturn := client.EVM().DeployContract(ctx, client.DefaultKey.Address, contract)
+	contractAddr := createReturn.EthAddress
+	contractFilAddr := *createReturn.RobustAddress
+
+	// Check contract nonce (should be 1 after deployment)
+	contractNonce, err := client.EVM().EthGetTransactionCount(ctx, contractAddr, ethtypes.NewEthBlockNumberOrHashFromPredefined("latest"))
+	require.NoError(t, err)
+	require.Equal(t, ethtypes.EthUint64(1), contractNonce)
+
+	// Destroy the contract
+	_, _, err = client.EVM().InvokeContractByFuncName(ctx, client.DefaultKey.Address, contractFilAddr, "destroy()", nil)
+	require.NoError(t, err)
+
+	// Check contract nonce after destruction (should be 0)
+	contractNonceAfterDestroy, err := client.EVM().EthGetTransactionCount(ctx, contractAddr, ethtypes.NewEthBlockNumberOrHashFromPredefined("latest"))
+	require.NoError(t, err)
+	require.Zero(t, contractNonceAfterDestroy)
+}
+
+func TestMcopy(t *testing.T) {
+	// MCOPY introduced in nv24, start the test on nv23 to check the error, then upgrade at epoch 100
+	// and check that an MCOPY contract can be deployed and run.
+	nv24epoch := abi.ChainEpoch(100)
+	upgradeSchedule := kit.UpgradeSchedule(
+		stmgr.Upgrade{
+			Network: network.Version23,
+			Height:  -1,
+		},
+		stmgr.Upgrade{
+			Network:   network.Version24,
+			Height:    nv24epoch,
+			Migration: filcns.UpgradeActorsV15,
+		},
+	)
+
+	ctx, cancel, client := kit.SetupFEVMTest(t, upgradeSchedule)
+	defer cancel()
+
+	// try to deploy the contract before the upgrade, expect an error somewhere' in deploy or in call,
+	// if the error is in deploy we may need to implement DeployContractFromFilename here where we can
+	// assert an error
+
+	// 0000000000000000000000000000000000000000000000000000000000000020: The offset for the bytes argument (32 bytes).
+	// 0000000000000000000000000000000000000000000000000000000000000008: The length of the bytes data (8 bytes for "testdata").
+	// 7465737464617461000000000000000000000000000000000000000000000000: The hexadecimal representation of "testdata", padded to 32 bytes.
+	hexString := "000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000087465737464617461000000000000000000000000000000000000000000000000"
+
+	// Decode the hex string into a byte slice
+	inputArgument, err := hex.DecodeString(hexString)
+	require.NoError(t, err)
+
+	filenameActor := "contracts/mcopy/MCOPYTest.hex"
+	fromAddr, contractAddr := client.EVM().DeployContractFromFilename(ctx, filenameActor)
+	_, _, err = client.EVM().InvokeContractByFuncName(ctx, fromAddr, contractAddr, "optimizedCopy(bytes)", inputArgument)
+	// We expect an error here due to MCOPY not being available in this network version
+	require.ErrorContains(t, err, "undefined instruction (35)")
+
+	// wait for the upgrade
+	client.WaitTillChain(ctx, kit.HeightAtLeast(nv24epoch+5))
+
+	// should be able to deploy and call the contract now
+	fromAddr, contractAddr = client.EVM().DeployContractFromFilename(ctx, filenameActor)
+	result, _, err := client.EVM().InvokeContractByFuncName(ctx, fromAddr, contractAddr, "optimizedCopy(bytes)", inputArgument)
+	require.NoError(t, err)
+	require.Equal(t, inputArgument, result)
+}
+
+func TestEthGetBlockByNumber(t *testing.T) {
+	blockTime := 100 * time.Millisecond
+	client, _, ens := kit.EnsembleMinimal(t, kit.MockProofs(), kit.ThroughRPC())
+
+	bms := ens.InterconnectAll().BeginMining(blockTime)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	// Create a new Ethereum account
+	_, ethAddr, filAddr := client.EVM().NewAccount()
+	// Send some funds to the f410 address
+	kit.SendFunds(ctx, t, client, filAddr, types.FromFil(10))
+
+	// Test getting the latest block
+	latest, err := client.EthBlockNumber(ctx)
+	require.NoError(t, err)
+	latestBlock, err := client.EthGetBlockByNumber(ctx, "latest", true)
+	require.NoError(t, err)
+	require.NotNil(t, latestBlock)
+
+	// Test getting a specific block by number
+	specificBlock, err := client.EthGetBlockByNumber(ctx, latest.Hex(), true)
+	require.NoError(t, err)
+	require.NotNil(t, specificBlock)
+
+	// Test getting a future block (should fail)
+	_, err = client.EthGetBlockByNumber(ctx, (latest + 10000).Hex(), true)
+	require.Error(t, err)
+
+	// Inject 10 null rounds
+	bms[0].InjectNulls(10)
+
+	// Wait until we produce blocks again
+	tctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	ch, err := client.ChainNotify(tctx)
+	require.NoError(t, err)
+	<-ch       // current
+	hc := <-ch // wait for next block
+	require.Equal(t, store.HCApply, hc[0].Type)
+
+	afterNullHeight := hc[0].Val.Height()
+
+	// Find the first null round
+	nullHeight := afterNullHeight - 1
+	for nullHeight > 0 {
+		ts, err := client.ChainGetTipSetByHeight(ctx, nullHeight, types.EmptyTSK)
+		require.NoError(t, err)
+		if ts.Height() == nullHeight {
+			nullHeight--
+		} else {
+			break
+		}
+	}
+
+	// Test getting a block for a null round
+	_, err = client.EthGetBlockByNumber(ctx, (ethtypes.EthUint64(nullHeight)).Hex(), true)
+	require.ErrorContains(t, err, "requested epoch was a null round")
+
+	// Test getting balance on a null round
+	bal, err := client.EthGetBalance(ctx, ethAddr, ethtypes.NewEthBlockNumberOrHashFromNumber(ethtypes.EthUint64(nullHeight)))
+	require.NoError(t, err)
+	require.NotEqual(t, big.Zero(), bal)
+	require.Equal(t, types.FromFil(10).Int, bal.Int)
+
+	// Test getting block by pending
+	pendingBlock, err := client.EthGetBlockByNumber(ctx, "pending", true)
+	require.NoError(t, err)
+	require.NotNil(t, pendingBlock)
+	require.True(t, pendingBlock.Number >= latest)
 }

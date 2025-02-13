@@ -11,6 +11,7 @@ import (
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/api/v1api"
 	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/build/buildconstants"
 	"github.com/filecoin-project/lotus/chain/gen"
 	"github.com/filecoin-project/lotus/chain/gen/slashfilter"
 	"github.com/filecoin-project/lotus/lib/harmony/harmonydb"
@@ -53,13 +54,9 @@ func ConfigStorageMiner(c interface{}) Option {
 	return Options(
 
 		Override(new(v1api.FullNode), modules.MakeUuidWrapper),
-		// Needed to instantiate pubsub used by index provider via ConfigCommon
-		Override(new(dtypes.DrandSchedule), modules.BuiltinDrandConfig),
-		Override(new(dtypes.BootstrapPeers), modules.BuiltinBootstrap),
-		Override(new(dtypes.DrandBootstrap), modules.DrandBootstrap),
-		ConfigCommon(&cfg.Common, build.NodeUserVersion(), false),
+		ConfigCommon(&cfg.Common, build.NodeUserVersion()),
 
-		Override(CheckFDLimit, modules.CheckFdLimit(build.MinerFDLimit)), // recommend at least 100k FD limit to miners
+		Override(CheckFDLimit, modules.CheckFdLimit(buildconstants.MinerFDLimit)), // recommend at least 100k FD limit to miners
 
 		Override(new(api.MinerSubsystems), modules.ExtractEnabledMinerSubsystems(cfg.Subsystems)),
 		Override(new(paths.LocalStorage), From(new(repo.LockedRepo))),
@@ -110,8 +107,8 @@ func ConfigStorageMiner(c interface{}) Option {
 				Override(new(paths.SectorIndex), From(new(*paths.DBIndex))),
 
 				// sector index db is the only thing on lotus-miner that will use harmonydb
-				Override(new(*harmonydb.DB), func(cfg config.HarmonyDB, id harmonydb.ITestID) (*harmonydb.DB, error) {
-					return harmonydb.NewFromConfigWithITestID(cfg)(id)
+				Override(new(*harmonydb.DB), func(cfg config.HarmonyDB) (*harmonydb.DB, error) {
+					return harmonydb.NewFromConfig(cfg)
 				}),
 			),
 			If(!cfg.Subsystems.EnableSectorIndexDB,
@@ -139,7 +136,6 @@ func ConfigStorageMiner(c interface{}) Option {
 		Override(new(config.SealerConfig), cfg.Storage),
 		Override(new(config.ProvingConfig), cfg.Proving),
 		Override(new(config.HarmonyDB), cfg.HarmonyDB),
-		Override(new(harmonydb.ITestID), harmonydb.ITestID("")),
 		Override(new(*ctladdr.AddressSelector), modules.AddressSelector(&cfg.Addresses)),
 		If(build.IsF3Enabled(), Override(F3Participation, modules.F3Participation)),
 	)

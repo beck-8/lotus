@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -18,7 +19,7 @@ import (
 	"github.com/filecoin-project/go-state-types/manifest"
 
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/build/buildconstants"
 	"github.com/filecoin-project/lotus/chain/actors"
 	"github.com/filecoin-project/lotus/chain/store"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -65,7 +66,7 @@ func TestValueTransferValidSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	tx := ethtypes.Eth1559TxArgs{
-		ChainID:              build.Eip155ChainId,
+		ChainID:              buildconstants.Eip155ChainId,
 		Value:                big.NewInt(100),
 		Nonce:                0,
 		To:                   &ethAddr2,
@@ -97,6 +98,7 @@ func TestValueTransferValidSignature(t *testing.T) {
 	require.EqualValues(t, ethAddr, receipt.From)
 	require.EqualValues(t, ethAddr2, *receipt.To)
 	require.EqualValues(t, hash, receipt.TransactionHash)
+	require.EqualValues(t, ethtypes.EIP1559TxType, receipt.Type)
 
 	// Success.
 	require.EqualValues(t, ethtypes.EthUint64(0x1), receipt.Status)
@@ -239,7 +241,7 @@ func TestContractInvocation(t *testing.T) {
 	require.NoError(t, err)
 
 	invokeTx := ethtypes.Eth1559TxArgs{
-		ChainID:              build.Eip155ChainId,
+		ChainID:              buildconstants.Eip155ChainId,
 		To:                   &contractAddr,
 		Value:                big.Zero(),
 		Nonce:                1,
@@ -260,6 +262,8 @@ func TestContractInvocation(t *testing.T) {
 	require.NoError(t, err)
 	// Submit transaction with bad signature
 	_, err = client.EVM().EthSendRawTransaction(ctx, signed)
+	require.Error(t, err)
+	_, err = client.EVM().EthSendRawTransactionUntrusted(ctx, signed)
 	require.Error(t, err)
 
 	// Submit transaction with valid signature
@@ -283,6 +287,120 @@ func TestContractInvocation(t *testing.T) {
 	require.EqualValues(t, invokResult.GasCost.GasUsed, big.NewInt(int64(receipt.GasUsed)))
 	effectiveGasPrice := big.Div(invokResult.GasCost.TotalCost, invokResult.GasCost.GasUsed)
 	require.EqualValues(t, effectiveGasPrice, big.Int(receipt.EffectiveGasPrice))
+}
+
+func TestContractInvocationMultiple(t *testing.T) {
+	const (
+		blockTime     = 100 * time.Millisecond
+		totalMessages = 20
+		maxUntrusted  = 10
+	)
+
+	for _, untrusted := range []bool{true, false} {
+		t.Run(fmt.Sprintf("untrusted=%t", untrusted), func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			defer cancel()
+
+			client, miner, ens := kit.EnsembleMinimal(t, kit.MockProofs(), kit.ThroughRPC())
+			t.Cleanup(func() {
+				_ = client.Stop(ctx)
+				_ = miner.Stop(ctx)
+			})
+			ens.InterconnectAll().BeginMining(blockTime)
+
+			// install contract
+			contractHex, err := os.ReadFile("./contracts/SimpleCoin.hex")
+			require.NoError(t, err)
+			contract, err := hex.DecodeString(string(contractHex))
+			require.NoError(t, err)
+
+			// create a new Ethereum account
+			key, ethAddr, deployer := client.EVM().NewAccount()
+			// send some funds to the f410 address
+			kit.SendFunds(ctx, t, client, deployer, types.FromFil(10))
+
+			// DEPLOY CONTRACT
+			contractTx, err := deployContractTx(ctx, client, ethAddr, contract)
+			require.NoError(t, err)
+			client.EVM().SignTransaction(contractTx, key.PrivateKey)
+			deployHash := client.EVM().SubmitTransaction(ctx, contractTx)
+
+			receipt, err := client.EVM().WaitTransaction(ctx, deployHash)
+			require.NoError(t, err)
+			require.NotNil(t, receipt)
+			require.EqualValues(t, ethtypes.EthUint64(0x1), receipt.Status)
+
+			// Get contract address.
+			contractAddr := client.EVM().ComputeContractAddress(ethAddr, 0)
+
+			// INVOKE CONTRACT
+
+			// Params
+			// entry point for getBalance - f8b2cb4f
+			// address - ff00000000000000000000000000000000000064
+			params, err := hex.DecodeString("f8b2cb4f000000000000000000000000ff00000000000000000000000000000000000064")
+			require.NoError(t, err)
+
+			gasParams, err := json.Marshal(ethtypes.EthEstimateGasParams{Tx: ethtypes.EthCall{
+				From: &ethAddr,
+				To:   &contractAddr,
+				Data: params,
+			}})
+			require.NoError(t, err)
+
+			gaslimit, err := client.EthEstimateGas(ctx, gasParams)
+			require.NoError(t, err)
+
+			maxPriorityFeePerGas, err := client.EthMaxPriorityFeePerGas(ctx)
+			require.NoError(t, err)
+
+			hashes := make([]ethtypes.EthHash, 0)
+			baseMsg := ethtypes.Eth1559TxArgs{
+				ChainID:              buildconstants.Eip155ChainId,
+				To:                   &contractAddr,
+				Value:                big.Zero(),
+				MaxFeePerGas:         types.NanoFil,
+				MaxPriorityFeePerGas: big.Int(maxPriorityFeePerGas),
+				GasLimit:             int(gaslimit),
+				Input:                params,
+				V:                    big.Zero(),
+				R:                    big.Zero(),
+				S:                    big.Zero(),
+			}
+
+			for i := 0; i < totalMessages; i++ {
+				invokeTx := baseMsg
+				invokeTx.Nonce = i + 1
+
+				client.EVM().SignTransaction(&invokeTx, key.PrivateKey)
+				signed, err := invokeTx.ToRlpSignedMsg()
+				require.NoError(t, err)
+
+				if untrusted {
+					hash, err := client.EVM().EthSendRawTransactionUntrusted(ctx, signed)
+					if i >= maxUntrusted {
+						require.Error(t, err)
+						require.Contains(t, err.Error(), "too many pending messages")
+						break
+					}
+					require.NoError(t, err)
+					hashes = append(hashes, hash)
+				} else {
+					hash, err := client.EVM().EthSendRawTransaction(ctx, signed)
+					require.NoError(t, err)
+					hashes = append(hashes, hash)
+				}
+			}
+
+			for _, hash := range hashes {
+				receipt, err = client.EVM().WaitTransaction(ctx, hash)
+				require.NoError(t, err)
+				require.NotNil(t, receipt)
+				// Success.
+				require.EqualValues(t, ethtypes.EthUint64(0x1), receipt.Status)
+			}
+		})
+	}
 }
 
 func TestGetBlockByNumber(t *testing.T) {
@@ -367,7 +485,7 @@ func deployContractTx(ctx context.Context, client *kit.TestFullNode, ethAddr eth
 
 	// now deploy a contract from the embryo, and validate it went well
 	return &ethtypes.Eth1559TxArgs{
-		ChainID:              build.Eip155ChainId,
+		ChainID:              buildconstants.Eip155ChainId,
 		Value:                big.Zero(),
 		Nonce:                0,
 		MaxFeePerGas:         types.NanoFil,
@@ -643,4 +761,117 @@ func TestTraceTransaction(t *testing.T) {
 	require.NotNil(t, traces)
 	require.EqualValues(t, traces[0].TransactionHash, hash)
 	require.EqualValues(t, traces[0].BlockNumber, receipt.BlockNumber)
+}
+
+func TestTraceFilter(t *testing.T) {
+	blockTime := 100 * time.Millisecond
+	client, _, ens := kit.EnsembleMinimal(t, kit.MockProofs(), kit.ThroughRPC())
+
+	ens.InterconnectAll().BeginMining(blockTime)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	// Example of creating and submitting a transaction
+	// Replace with actual test setup as needed
+	contractHex, err := os.ReadFile("./contracts/SimpleCoin.hex")
+	require.NoError(t, err)
+
+	contract, err := hex.DecodeString(string(contractHex))
+	require.NoError(t, err)
+
+	key, ethAddr, deployer := client.EVM().NewAccount()
+	kit.SendFunds(ctx, t, client, deployer, types.FromFil(10))
+
+	tx, err := deployContractTx(ctx, client, ethAddr, contract)
+	require.NoError(t, err)
+
+	client.EVM().SignTransaction(tx, key.PrivateKey)
+	hash := client.EVM().SubmitTransaction(ctx, tx)
+
+	// Wait for the transaction to be mined
+	receipt, err := client.EVM().WaitTransaction(ctx, hash)
+	require.NoError(t, err)
+	require.NotNil(t, receipt)
+	require.EqualValues(t, ethtypes.EthUint64(0x1), receipt.Status)
+
+	// Get contract address.
+	contractAddr := client.EVM().ComputeContractAddress(ethAddr, 0)
+
+	// get trace and verify values
+	tracesx, err := client.EthTraceTransaction(ctx, hash.String())
+	require.NoError(t, err)
+	require.NotNil(t, tracesx)
+	require.EqualValues(t, tracesx[0].TransactionHash, hash)
+	require.EqualValues(t, tracesx[0].BlockNumber, receipt.BlockNumber)
+
+	_ = client.WaitTillChain(ctx, kit.HeightAtLeast(abi.ChainEpoch(receipt.BlockNumber+1)))
+
+	// Define filter criteria
+	fromBlock := "0x1"
+	toBlock := fmt.Sprint(receipt.BlockNumber)
+	filter := ethtypes.EthTraceFilterCriteria{
+		FromBlock: &fromBlock,
+		ToBlock:   &toBlock,
+	}
+
+	// Trace filter should find the transaction
+	traces, err := client.EthTraceFilter(ctx, filter)
+	require.NoError(t, err)
+	require.NotNil(t, traces)
+	require.NotEmpty(t, traces)
+
+	for i, trace := range traces {
+		t.Logf("Trace %d: TransactionPosition=%d, TransactionHash=%s, Type=%s", i, trace.TransactionPosition, trace.TransactionHash, trace.EthTrace.Type)
+	}
+
+	// Assert that initial transactions returned by the trace are valid
+	require.Len(t, traces, 3)
+	require.Equal(t, 1, traces[0].TransactionPosition)
+	require.Equal(t, "call", traces[0].EthTrace.Type)
+	require.Equal(t, 1, traces[1].TransactionPosition)
+	require.Equal(t, "call", traces[1].EthTrace.Type)
+
+	// our transaction will be in the third element of traces with the expected hash
+	require.Equal(t, 1, traces[2].TransactionPosition)
+	require.Equal(t, hash, traces[2].TransactionHash)
+	require.Equal(t, "create", traces[2].EthTrace.Type)
+
+	toBlock = "latest"
+	filter = ethtypes.EthTraceFilterCriteria{
+		FromBlock:   &fromBlock,
+		ToBlock:     &toBlock,
+		FromAddress: ethtypes.EthAddressList{ethAddr},
+		ToAddress:   ethtypes.EthAddressList{contractAddr},
+	}
+
+	// Trace filter should find the transaction
+	tracesAddressFilter, err := client.EthTraceFilter(ctx, filter)
+	require.NoError(t, err)
+	require.NotNil(t, tracesAddressFilter)
+	require.NotEmpty(t, tracesAddressFilter)
+
+	//we should only get our contract deploy transaction
+	require.Len(t, tracesAddressFilter, 1)
+	require.Equal(t, 1, tracesAddressFilter[0].TransactionPosition)
+	require.Equal(t, hash, tracesAddressFilter[0].TransactionHash)
+	require.Equal(t, "create", tracesAddressFilter[0].EthTrace.Type)
+
+	after := ethtypes.EthUint64(1)
+	count := ethtypes.EthUint64(2)
+	filter = ethtypes.EthTraceFilterCriteria{
+		FromBlock: &fromBlock,
+		ToBlock:   &toBlock,
+		After:     &after,
+		Count:     &count,
+	}
+	// Trace filter should find the transaction
+	tracesAfterCount, err := client.EthTraceFilter(ctx, filter)
+	require.NoError(t, err)
+	require.NotNil(t, traces)
+	require.NotEmpty(t, traces)
+
+	//we should only get the last two results from the first trace query
+	require.Len(t, tracesAfterCount, 2)
+	require.Equal(t, traces[1].TransactionHash, tracesAfterCount[0].TransactionHash)
+	require.Equal(t, traces[2].TransactionHash, tracesAfterCount[1].TransactionHash)
 }

@@ -17,7 +17,7 @@ import (
 	"github.com/filecoin-project/go-state-types/network"
 
 	"github.com/filecoin-project/lotus/api"
-	"github.com/filecoin-project/lotus/build"
+	"github.com/filecoin-project/lotus/build/buildconstants"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
 	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/types"
@@ -25,8 +25,6 @@ import (
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/storage/pipeline/sealiface"
 )
-
-//go:generate go run github.com/golang/mock/mockgen -destination=mocks/mock_precommit_batcher.go -package=mocks . PreCommitBatcherApi
 
 type PreCommitBatcherApi interface {
 	MpoolPushMessage(context.Context, *types.Message, *api.MessageSendSpec) (*types.SignedMessage, error)
@@ -67,7 +65,7 @@ type PreCommitBatcher struct {
 	lk                    sync.Mutex
 }
 
-func NewPreCommitBatcher(mctx context.Context, maddr address.Address, api PreCommitBatcherApi, addrSel AddressSelector, feeCfg config.MinerFeeConfig, getConfig dtypes.GetSealingConfigFunc) *PreCommitBatcher {
+func NewPreCommitBatcher(mctx context.Context, maddr address.Address, api PreCommitBatcherApi, addrSel AddressSelector, feeCfg config.MinerFeeConfig, getConfig dtypes.GetSealingConfigFunc) (*PreCommitBatcher, error) {
 	b := &PreCommitBatcher{
 		api:       api,
 		maddr:     maddr,
@@ -86,19 +84,19 @@ func NewPreCommitBatcher(mctx context.Context, maddr address.Address, api PreCom
 		stopped: make(chan struct{}),
 	}
 
-	go b.run()
-
-	return b
-}
-
-func (b *PreCommitBatcher) run() {
-	var forceRes chan []sealiface.PreCommitBatchRes
-	var lastRes []sealiface.PreCommitBatchRes
-
 	cfg, err := b.getConfig()
 	if err != nil {
-		panic(err)
+		return nil, xerrors.Errorf("failed to get sealer config: %w", err)
 	}
+
+	go b.run(cfg)
+
+	return b, nil
+}
+
+func (b *PreCommitBatcher) run(cfg sealiface.Config) {
+	var forceRes chan []sealiface.PreCommitBatchRes
+	var lastRes []sealiface.PreCommitBatchRes
 
 	timer := time.NewTimer(b.batchWait(cfg.PreCommitBatchWait, cfg.PreCommitBatchSlack))
 	for {
@@ -323,7 +321,7 @@ func (b *PreCommitBatcher) processBatch(cfg sealiface.Config, tsk types.TipSetKe
 	return b.processPreCommitBatch(cfg, bf, pcEntries, nv)
 }
 
-// register PreCommit, wait for batch message, return message CID
+// AddPreCommit registers PreCommit, waits for batch message, returns message CID
 func (b *PreCommitBatcher) AddPreCommit(ctx context.Context, s SectorInfo, deposit abi.TokenAmount, in *miner.SectorPreCommitInfo) (res sealiface.PreCommitBatchRes, err error) {
 	ts, err := b.api.ChainHead(b.mctx)
 	if err != nil {
@@ -349,7 +347,7 @@ func (b *PreCommitBatcher) AddPreCommit(ctx context.Context, s SectorInfo, depos
 	sn := s.SectorNumber
 
 	b.lk.Lock()
-	b.cutoffs[sn] = time.Now().Add(time.Duration(cutoffEpoch-ts.Height()) * time.Duration(build.BlockDelaySecs) * time.Second)
+	b.cutoffs[sn] = time.Now().Add(time.Duration(cutoffEpoch-ts.Height()) * time.Duration(buildconstants.BlockDelaySecs) * time.Second)
 	b.todo[sn] = &preCommitEntry{
 		deposit: deposit,
 		pci:     in,

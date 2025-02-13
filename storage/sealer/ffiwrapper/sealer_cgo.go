@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"math/bits"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -24,12 +23,13 @@ import (
 
 	ffi "github.com/filecoin-project/filecoin-ffi"
 	rlepluslazy "github.com/filecoin-project/go-bitfield/rle"
-	commpffi "github.com/filecoin-project/go-commp-utils/ffiwrapper"
-	"github.com/filecoin-project/go-commp-utils/zerocomm"
+	"github.com/filecoin-project/go-commp-utils/v2"
+	"github.com/filecoin-project/go-commp-utils/v2/zerocomm"
 	commcid "github.com/filecoin-project/go-fil-commcid"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/proof"
 
+	"github.com/filecoin-project/lotus/chain/proofs"
 	"github.com/filecoin-project/lotus/lib/nullreader"
 	spaths "github.com/filecoin-project/lotus/storage/paths"
 	"github.com/filecoin-project/lotus/storage/sealer/fr32"
@@ -185,7 +185,7 @@ func (sb *Sealer) DataCid(ctx context.Context, pieceSize abi.UnpaddedPieceSize, 
 		payloadRoundedBytes += pinfo.Size
 	}
 
-	pieceCID, err := ffi.GenerateUnsealedCID(maxSizeSpt, pieceCids)
+	pieceCID, _, err := commp.PieceAggregateCommP(maxSizeSpt, pieceCids)
 	if err != nil {
 		return abi.PieceInfo{}, xerrors.Errorf("generate unsealed CID: %w", err)
 	}
@@ -196,7 +196,7 @@ func (sb *Sealer) DataCid(ctx context.Context, pieceSize abi.UnpaddedPieceSize, 
 	}
 
 	if payloadRoundedBytes < pieceSize.Padded() {
-		paddedCid, err := commpffi.ZeroPadPieceCommitment(pieceCID, payloadRoundedBytes.Unpadded(), pieceSize)
+		paddedCid, err := commp.ZeroPadPieceCommitment(pieceCID, payloadRoundedBytes.Unpadded(), pieceSize)
 		if err != nil {
 			return abi.PieceInfo{}, xerrors.Errorf("failed to pad data: %w", err)
 		}
@@ -387,7 +387,7 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storiface.SectorRef, exis
 		payloadRoundedBytes += pinfo.Size
 	}
 
-	pieceCID, err := ffi.GenerateUnsealedCID(sector.ProofType, pieceCids)
+	pieceCID, _, err := commp.PieceAggregateCommP(sector.ProofType, pieceCids)
 	if err != nil {
 		return abi.PieceInfo{}, xerrors.Errorf("generate unsealed CID: %w", err)
 	}
@@ -398,7 +398,7 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storiface.SectorRef, exis
 	}
 
 	if payloadRoundedBytes < pieceSize.Padded() {
-		paddedCid, err := commpffi.ZeroPadPieceCommitment(pieceCID, payloadRoundedBytes.Unpadded(), pieceSize)
+		paddedCid, err := commp.ZeroPadPieceCommitment(pieceCID, payloadRoundedBytes.Unpadded(), pieceSize)
 		if err != nil {
 			return abi.PieceInfo{}, xerrors.Errorf("failed to pad data: %w", err)
 		}
@@ -413,25 +413,13 @@ func (sb *Sealer) AddPiece(ctx context.Context, sector storiface.SectorRef, exis
 }
 
 func (sb *Sealer) pieceCid(spt abi.RegisteredSealProof, in []byte) (cid.Cid, error) {
-	prf, werr, err := commpffi.ToReadableFile(bytes.NewReader(in), int64(len(in)))
-	if err != nil {
-		return cid.Undef, xerrors.Errorf("getting tee reader pipe: %w", err)
-	}
-
-	pieceCID, err := ffi.GeneratePieceCIDFromFile(spt, prf, abi.UnpaddedPieceSize(len(in)))
-	if err != nil {
-		return cid.Undef, xerrors.Errorf("generating piece commitment: %w", err)
-	}
-
-	_ = prf.Close()
-
-	return pieceCID, werr()
+	return commp.GeneratePieceCIDFromFile(spt, bytes.NewReader(in), abi.UnpaddedPieceSize(len(in)))
 }
 
 func (sb *Sealer) acquireUpdatePath(ctx context.Context, sector storiface.SectorRef) (string, func(), error) {
 	// copy so that the sector doesn't get removed from a long-term storage path
 	replicaPath, releaseSector, err := sb.sectors.AcquireSectorCopy(ctx, sector, storiface.FTUpdate, storiface.FTNone, storiface.PathSealing)
-	if xerrors.Is(err, storiface.ErrSectorNotFound) {
+	if errors.Is(err, storiface.ErrSectorNotFound) {
 		return "", releaseSector, nil
 	} else if err != nil {
 		return "", releaseSector, xerrors.Errorf("reading updated replica: %w", err)
@@ -483,7 +471,7 @@ func (sb *Sealer) acquireSectorKeyOrRegenerate(ctx context.Context, sector stori
 	paths, done, err := sb.sectors.AcquireSectorCopy(ctx, sector, storiface.FTSealed|storiface.FTCache, storiface.FTNone, storiface.PathSealing)
 	if err == nil {
 		return paths, done, err
-	} else if !xerrors.Is(err, storiface.ErrSectorNotFound) {
+	} else if !errors.Is(err, storiface.ErrSectorNotFound) {
 		return paths, done, xerrors.Errorf("reading sector key: %w", err)
 	}
 
@@ -587,7 +575,7 @@ func (sb *Sealer) UnsealPiece(ctx context.Context, sector storiface.SectorRef, o
 	var pf *partialfile.PartialFile
 
 	switch {
-	case xerrors.Is(err, storiface.ErrSectorNotFound):
+	case errors.Is(err, storiface.ErrSectorNotFound):
 		// allocate if doesn't exist
 		unsealedPath, done, err = sb.sectors.AcquireSector(ctx, sector, storiface.FTNone, storiface.FTUnsealed, storiface.PathSealing)
 		if err != nil {
@@ -786,7 +774,7 @@ func (sb *Sealer) ReadPiece(ctx context.Context, writer io.Writer, sector storif
 
 	pf, err := partialfile.OpenPartialFile(maxPieceSize, path.Unsealed)
 	if err != nil {
-		if xerrors.Is(err, os.ErrNotExist) {
+		if errors.Is(err, os.ErrNotExist) {
 			return false, nil
 		}
 
@@ -1195,7 +1183,7 @@ func (sb *Sealer) ReleaseUnsealed(ctx context.Context, sector storiface.SectorRe
 				return err
 			}
 		} else {
-			if !xerrors.Is(err, os.ErrNotExist) {
+			if !errors.Is(err, os.ErrNotExist) {
 				return xerrors.Errorf("opening partial file: %w", err)
 			}
 		}
@@ -1358,68 +1346,15 @@ func (sb *Sealer) DownloadSectorData(ctx context.Context, sector storiface.Secto
 	return nil
 }
 
-func GetRequiredPadding(oldLength abi.PaddedPieceSize, newPieceLength abi.PaddedPieceSize) ([]abi.PaddedPieceSize, abi.PaddedPieceSize) {
+// GetRequiredPadding is a no-longer-used function that used to live in the ffiwrapper
+//
+// Deprecated: Use proofs.GetRequiredPadding instead
+var GetRequiredPadding = proofs.GetRequiredPadding
 
-	padPieces := make([]abi.PaddedPieceSize, 0)
-
-	toFill := uint64(-oldLength % newPieceLength)
-
-	n := bits.OnesCount64(toFill)
-	var sum abi.PaddedPieceSize
-	for i := 0; i < n; i++ {
-		next := bits.TrailingZeros64(toFill)
-		psize := uint64(1) << uint(next)
-		toFill ^= psize
-
-		padded := abi.PaddedPieceSize(psize)
-		padPieces = append(padPieces, padded)
-		sum += padded
-	}
-
-	return padPieces, sum
-}
-
-func GenerateUnsealedCID(proofType abi.RegisteredSealProof, pieces []abi.PieceInfo) (cid.Cid, error) {
-	ssize, err := proofType.SectorSize()
-	if err != nil {
-		return cid.Undef, err
-	}
-
-	pssize := abi.PaddedPieceSize(ssize)
-	allPieces := make([]abi.PieceInfo, 0, len(pieces))
-	if len(pieces) == 0 {
-		allPieces = append(allPieces, abi.PieceInfo{
-			Size:     pssize,
-			PieceCID: zerocomm.ZeroPieceCommitment(pssize.Unpadded()),
-		})
-	} else {
-		var sum abi.PaddedPieceSize
-
-		padTo := func(pads []abi.PaddedPieceSize) {
-			for _, p := range pads {
-				allPieces = append(allPieces, abi.PieceInfo{
-					Size:     p,
-					PieceCID: zerocomm.ZeroPieceCommitment(p.Unpadded()),
-				})
-
-				sum += p
-			}
-		}
-
-		for _, p := range pieces {
-			ps, _ := GetRequiredPadding(sum, p.Size)
-			padTo(ps)
-
-			allPieces = append(allPieces, p)
-			sum += p.Size
-		}
-
-		ps, _ := GetRequiredPadding(sum, pssize)
-		padTo(ps)
-	}
-
-	return ffi.GenerateUnsealedCID(proofType, allPieces)
-}
+// GenerateUnsealedCID is a no-longer-used function that used to live in the ffiwrapper
+//
+// Deprecated: Use proofs.GenerateUnsealedCID instead
+var GenerateUnsealedCID = proofs.GenerateUnsealedCID
 
 func (sb *Sealer) GenerateSingleVanillaProof(
 	replica ffi.PrivateSectorInfo,
