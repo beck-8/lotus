@@ -159,7 +159,8 @@ var dcDailyGasCmd = &cli.Command{
 
 						//屏蔽无关消息，否则cache会缓存全网的SP
 						switch msg.Message.Method {
-						case 6, 7, 25, 26:
+						// PreCommitSector,ProveCommitSector,PreCommitSectorBatch,ProveCommitAggregate,ProveCommitSectors3
+						case 6, 7, 25, 26, 34:
 							replay(msg)
 							info, err := cache.Get(invocResult.Msg.To, nodeAPI, ctx)
 							if err != nil {
