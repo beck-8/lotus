@@ -1553,8 +1553,7 @@ func AutoTerminateSectorCmd(getActorAddress ActorAddressGetter) *cli.Command {
 			for i, batch := range batchs {
 				select {
 				case <-ctx.Done():
-					fmt.Println("Stopping loop due to error")
-					return nil
+					return fmt.Errorf("Stopping loop due to error")
 				default:
 					concurrency <- struct{}{}
 					wg.Add(1)
@@ -1564,7 +1563,6 @@ func AutoTerminateSectorCmd(getActorAddress ActorAddressGetter) *cli.Command {
 							wg.Done()
 						}()
 
-						fmt.Printf("batch %v: ", i)
 						_, err = TerminateSectors(ctx, nodeApi, maddr, b, fromAddr)
 						if err != nil {
 							fmt.Printf("TerminateSectors error: %v\n", err)
