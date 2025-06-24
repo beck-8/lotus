@@ -1418,6 +1418,169 @@ func TerminateSectorCmd(getActorAddress ActorAddressGetter) *cli.Command {
 	}
 }
 
+func AutoTerminateSectorCmd(getActorAddress ActorAddressGetter) *cli.Command {
+	return &cli.Command{
+		Name:  "auto-terminate",
+		Usage: "Forcefully terminate all sector (WARNING: This means losing power and pay a one-time termination penalty(including collateral) for the terminated sector)",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "actor",
+				Usage: "specify the address of miner actor",
+			},
+			&cli.StringFlag{
+				Name:  "from",
+				Usage: "specify the address to send the terminate message from",
+			},
+			&cli.IntFlag{
+				Name:  "batch",
+				Usage: "specify the number of each batch",
+				Value: 500,
+			},
+			&cli.IntFlag{
+				Name:  "concurrency",
+				Usage: "specify the number of tasks concurrency",
+				Value: 1,
+			},
+			&cli.IntFlag{
+				Name:  "from-height",
+				Usage: "specify the start height of the termination",
+				Value: 0,
+			},
+			&cli.IntFlag{
+				Name:  "to-height",
+				Usage: "specify the end height of the termination",
+				Value: math.MaxInt,
+			},
+			&cli.IntSliceFlag{
+				Name:  "deadlines",
+				Usage: "specify which sectors within deadlines to terminate",
+				Value: cli.NewIntSlice(lo.Range(48)...),
+			},
+			&cli.BoolFlag{
+				Name:  "really-do-it",
+				Usage: "pass this flag if you know what you are doing",
+			},
+		},
+		Action: func(cctx *cli.Context) error {
+			fromHeight := cctx.Int("from-height")
+			toHeight := cctx.Int("to-height")
+
+			var maddr address.Address
+			if act := cctx.String("actor"); act != "" {
+				var err error
+				maddr, err = address.NewFromString(act)
+				if err != nil {
+					return fmt.Errorf("parsing address %s: %w", act, err)
+				}
+			}
+
+			nodeApi, closer, err := lcli.GetFullNodeAPI(cctx)
+			if err != nil {
+				return err
+			}
+			defer closer()
+
+			ctx := lcli.ReqContext(cctx)
+
+			if maddr.Empty() {
+				maddr, err = getActorAddress(cctx)
+				if err != nil {
+					return err
+				}
+			}
+
+			var fromAddr address.Address
+			if from := cctx.String("from"); from != "" {
+				var err error
+				fromAddr, err = address.NewFromString(from)
+				if err != nil {
+					return fmt.Errorf("parsing address %s: %w", from, err)
+				}
+			} else {
+				mi, err := nodeApi.StateMinerInfo(ctx, maddr, types.EmptyTSK)
+				if err != nil {
+					return err
+				}
+
+				fromAddr = mi.Worker
+			}
+
+			onChainInfo, err := nodeApi.StateMinerSectors(ctx, maddr, nil, types.EmptyTSK)
+			if err != nil {
+				return err
+			}
+			liveSectors := make(map[uint64]struct{})
+			for _, i := range cctx.IntSlice("deadlines") {
+				parttitons, err := nodeApi.StateMinerPartitions(ctx, maddr, uint64(i), types.EmptyTSK)
+				if err != nil {
+					return err
+				}
+				for _, partition := range parttitons {
+					count, err := partition.LiveSectors.Count()
+					if err != nil {
+						return err
+					}
+					sectors, err := partition.LiveSectors.All(count)
+					if err != nil {
+						return err
+					}
+					for _, sector := range sectors {
+						liveSectors[uint64(sector)] = struct{}{}
+					}
+				}
+			}
+
+			sectorNumbers := lo.FilterMap(onChainInfo, func(sec *miner.SectorOnChainInfo, _ int) (int, bool) {
+				if _, ok := liveSectors[uint64(sec.SectorNumber)]; ok {
+					if sec.Expiration >= abi.ChainEpoch(fromHeight) && sec.Expiration <= abi.ChainEpoch(toHeight) {
+						return int(sec.SectorNumber), true
+					}
+				}
+				return 0, false
+			})
+
+			if !cctx.Bool("really-do-it") {
+				fmt.Printf("A total of %v sectors will be terminated\n", len(sectorNumbers))
+				return fmt.Errorf("this is a command for advanced users, only use it if you are sure of what you are doing")
+			}
+
+			batchs := lo.Chunk(sectorNumbers, cctx.Int("batch"))
+
+			concurrency := make(chan struct{}, cctx.Int("concurrency"))
+			wg := &sync.WaitGroup{}
+			ctx, cancel := context.WithCancel(ctx)
+
+			for i, batch := range batchs {
+				select {
+				case <-ctx.Done():
+					fmt.Println("Stopping loop due to error")
+					break
+				default:
+					concurrency <- struct{}{}
+					wg.Add(1)
+					go func(i int, b []int) {
+						defer func() {
+							<-concurrency
+							wg.Done()
+						}()
+
+						fmt.Printf("batch %v: ", i)
+						_, err = TerminateSectors(ctx, nodeApi, maddr, b, fromAddr)
+						if err != nil {
+							fmt.Printf("TerminateSectors error: %v\n", err)
+							cancel()
+						}
+					}(i, batch)
+
+				}
+			}
+			wg.Wait()
+
+			return nil
+		},
+	}
+}
+
 type TerminatorNode interface {
 	StateSectorPartition(ctx context.Context, maddr address.Address, sectorNumber abi.SectorNumber, tok types.TipSetKey) (*miner.SectorLocation, error)
 	MpoolPushMessage(ctx context.Context, msg *types.Message, spec *api.MessageSendSpec) (*types.SignedMessage, error)

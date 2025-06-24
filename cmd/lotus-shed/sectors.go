@@ -48,6 +48,7 @@ var sectorsCmd = &cli.Command{
 	Flags: []cli.Flag{},
 	Subcommands: []*cli.Command{
 		spcli.TerminateSectorCmd(shedGetActor),
+		spcli.AutoTerminateSectorCmd(shedGetActor),
 		terminateSectorPenaltyEstimationCmd,
 		visAllocatedSectorsCmd,
 		dumpRLESectorCmd,
