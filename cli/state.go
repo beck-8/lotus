@@ -22,6 +22,7 @@ import (
 	cbor "github.com/ipfs/go-ipld-cbor"
 	"github.com/urfave/cli/v2"
 	cbg "github.com/whyrusleeping/cbor-gen"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
@@ -545,6 +546,10 @@ var StateListMinersCmd = &cli.Command{
 			Name:  "sort-by",
 			Usage: "criteria to sort miners by (none, num-deals)",
 		},
+		&cli.BoolFlag{
+			Name:  "haspower",
+			Usage: "only display miners with power greater than 0",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		api, closer, err := GetFullNodeAPI(cctx)
@@ -585,8 +590,25 @@ var StateListMinersCmd = &cli.Command{
 		case "", "none":
 		}
 
+		hasPower := cctx.Bool("haspower")
+		g := new(errgroup.Group)
+		g.SetLimit(200)
 		for _, m := range miners {
-			fmt.Println(m.String())
+			m := m
+			g.Go(func() error {
+				pow, err := api.StateMinerPower(ctx, m, types.EmptyTSK)
+				if err != nil {
+					return err
+				}
+				if hasPower && pow.MinerPower.RawBytePower.LessThanEqual(big.NewInt(0)) {
+					return nil
+				}
+				fmt.Println(m.String())
+				return nil
+			})
+		}
+		if err := g.Wait(); err != nil {
+			fmt.Println("returned an error:", err)
 		}
 
 		return nil
